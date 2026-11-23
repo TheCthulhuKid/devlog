@@ -21,6 +21,18 @@ repos = ["~/projects/devlog"]          # git repos to read; each must exist
 notes_paths = ["~/.claude/plans"]      # optional: plan files and session notes
 ```
 
+## Inbox notes
+
+Quick thoughts go in `inbox.md` in the journal folder. Each bullet under a date heading is one note; lines
+after a bullet belong to it. A bullet with no date heading above it is an error, so no note is lost.
+
+```markdown
+## 2026-11-18
+- Caching was a dead end
+  Invalidation cost more than it saved.
+- Ask about rate limits
+```
+
 ## Usage
 
 ```sh
