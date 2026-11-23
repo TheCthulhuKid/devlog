@@ -10,17 +10,40 @@ from devlog.events import Event
 
 _RECORD, _FIELD = "\x1e", "\x1f"
 _LOG_FORMAT = f"--format=%x1e{'%x1f'.join(['%H', '%aI', '%s', '%b', ''])}"
+DEFAULT_IGNORED_FILES = (
+    "*.lock",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "go.sum",
+    "*.min.js",
+    "*.min.css",
+    "*.map",
+    "*_pb2.py",
+    "*.pb.go",
+    "dist/**",
+    "node_modules/**",
+)
 _GITHUB_REMOTE = re.compile(
     r"(?:https://github\.com/|(?:ssh://)?git@github\.com[:/])(?P<slug>[^/]+/[^/]+?)(?:\.git)?/?"
 )
 
 
 class GitCollector:
-    """One event per non-merge commit the repo's configured user authored, on any branch."""
+    """One event per non-merge commit the repo's configured user authored, on any branch.
 
-    def __init__(self, repos: Sequence[Path], run: Runner) -> None:
+    Files matching `ignored_files` (globs, at any depth) are left out, and so is a commit that
+    touches nothing else.
+    """
+
+    def __init__(
+        self,
+        repos: Sequence[Path],
+        run: Runner,
+        ignored_files: Sequence[str] = DEFAULT_IGNORED_FILES,
+    ) -> None:
         self._repos = repos
         self._run = run
+        self._excludes = [f":(exclude,glob)**/{pattern}" for pattern in ignored_files]
 
     def collect(self, start: datetime, end: datetime) -> list[Event]:
         """Return the commits authored in `start <= time < end`, across all repos."""
@@ -44,6 +67,8 @@ class GitCollector:
             f"--author={author}",
             f"--since={start.isoformat()}",
             _LOG_FORMAT,
+            "--",
+            *self._excludes,
         )
         return [_event(record, repo.name, link_prefix) for record in log.split(_RECORD)[1:]]
 
@@ -57,17 +82,18 @@ def _link_prefix(repo_name: str, remote: str) -> str:
 
 def _event(record: str, repo_name: str, link_prefix: str) -> Event:
     sha, authored, subject, message, numstat = record.split(_FIELD)
+    changes = [line.split("\t", maxsplit=2) for line in numstat.splitlines() if line]
     return Event(
         time=datetime.fromisoformat(authored),
         source="git",
         repo=repo_name,
         title=subject or "(no commit message)",
-        body="\n\n".join(part for part in (message.strip(), _changes(numstat)) if part),
+        body="\n\n".join(part for part in (message.strip(), _stats(changes)) if part),
         link=f"{link_prefix}{sha}",
+        files=tuple(path for _, _, path in changes),
     )
 
 
-def _changes(numstat: str) -> str:
-    rows = [line.split("\t", maxsplit=2) for line in numstat.splitlines() if line]
-    files = [f"{path} (+{added} -{deleted})" for added, deleted, path in rows]
+def _stats(changes: Sequence[Sequence[str]]) -> str:
+    files = [f"{path} (+{added} -{deleted})" for added, deleted, path in changes]
     return "\n".join([f"Files changed: {len(files)}", *files])

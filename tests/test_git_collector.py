@@ -1,6 +1,9 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
+from devlog.collectors.base import run_command
 from devlog.collectors.git import GitCollector
 from devlog.events import Event
 
@@ -35,6 +38,7 @@ def test_commit_becomes_an_event_with_stats_and_files():
                 "Files changed: 2\nsrc/client.py (+12 -3)\ntests/test_client.py (+4 -0)"
             ),
             link="https://github.com/octocat/devlog/commit/abc123",
+            files=("src/client.py", "tests/test_client.py"),
         )
     ]
 
@@ -47,3 +51,42 @@ def test_commits_outside_the_range_are_left_out():
     )
 
     assert [event.title for event in collect(log)] == ["this week"]
+
+
+def git(repo: Path, *args: str) -> None:
+    run_command(["git", "-C", str(repo), "-c", "commit.gpgsign=false", *args])
+
+
+@pytest.fixture
+def repo(tmp_path):
+    git(tmp_path, "init", "--quiet")
+    git(tmp_path, "config", "user.email", "octocat@example.com")
+    git(tmp_path, "config", "user.name", "Octo Cat")
+    return tmp_path
+
+
+def commit(repo: Path, message: str, *paths: str) -> None:
+    for path in paths:
+        (repo / path).parent.mkdir(parents=True, exist_ok=True)
+        (repo / path).write_text(message)
+    git(repo, "add", ".")
+    git(repo, "commit", "--quiet", "--message", message)
+
+
+def collect_all(repo: Path) -> list[Event]:
+    return GitCollector([repo], run_command).collect(
+        datetime(2000, 1, 1, tzinfo=UTC), datetime(2100, 1, 1, tzinfo=UTC)
+    )
+
+
+def test_lockfiles_are_left_out_of_changed_files(repo):
+    commit(repo, "feat: add app", "src/app.py", "uv.lock")
+
+    assert [event.files for event in collect_all(repo)] == [("src/app.py",)]
+
+
+def test_commit_touching_only_generated_files_is_skipped(repo):
+    commit(repo, "feat: add app", "src/app.py")
+    commit(repo, "chore: rebuild", "uv.lock", "web/dist/app.min.js")
+
+    assert [event.title for event in collect_all(repo)] == ["feat: add app"]
