@@ -14,6 +14,7 @@ def collect(log: str) -> list[Event]:
     outputs = {
         "config": "octocat@example.com\n",
         "ls-remote": "git@github.com:octocat/devlog.git\n",
+        "remote": "origin\n",
         "log": log,
     }
     collector = GitCollector([Path("/work/devlog")], lambda args: outputs[args[5]])
@@ -22,7 +23,7 @@ def collect(log: str) -> list[Event]:
 
 def test_commit_becomes_an_event_with_stats_and_files():
     log = (
-        "\x1eabc123\x1f2026-11-17T09:30:00+01:00\x1ffix: retry on timeout\x1f"
+        "\x1eabc123\x1f2026-11-17T09:30:00+01:00\x1forigin/retries\x1ffix: retry on timeout\x1f"
         "The API drops idle connections.\n\x1f\n\n"
         "12\t3\tsrc/client.py\n4\t0\ttests/test_client.py\n"
     )
@@ -39,15 +40,16 @@ def test_commit_becomes_an_event_with_stats_and_files():
             ),
             link="https://github.com/octocat/devlog/commit/abc123",
             files=("src/client.py", "tests/test_client.py"),
+            branch="retries",
         )
     ]
 
 
 def test_commits_outside_the_range_are_left_out():
     log = (
-        "\x1eaaa\x1f2026-11-23T00:00:00+00:00\x1fnext week\x1f\x1f\n\n1\t0\ta.py\n"
-        "\x1ebbb\x1f2026-11-22T23:59:00+00:00\x1fthis week\x1f\x1f\n\n1\t0\ta.py\n"
-        "\x1eccc\x1f2026-11-15T23:59:00+00:00\x1frebased from last week\x1f\x1f\n\n1\t0\ta.py\n"
+        "\x1eaaa\x1f2026-11-23T00:00:00+00:00\x1fmain\x1fnext week\x1f\x1f\n\n1\t0\ta.py\n"
+        "\x1ebbb\x1f2026-11-22T23:59:00+00:00\x1fmain\x1fthis week\x1f\x1f\n\n1\t0\ta.py\n"
+        "\x1eccc\x1f2026-11-15T23:59:00+00:00\x1fmain\x1frebased\x1f\x1f\n\n1\t0\ta.py\n"
     )
 
     assert [event.title for event in collect(log)] == ["this week"]
@@ -59,7 +61,7 @@ def git(repo: Path, *args: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path):
-    git(tmp_path, "init", "--quiet")
+    git(tmp_path, "init", "--quiet", "--initial-branch=main")
     git(tmp_path, "config", "user.email", "octocat@example.com")
     git(tmp_path, "config", "user.name", "Octo Cat")
     return tmp_path
@@ -90,3 +92,12 @@ def test_commit_touching_only_generated_files_is_skipped(repo):
     commit(repo, "chore: rebuild", "uv.lock", "web/dist/app.min.js")
 
     assert [event.title for event in collect_all(repo)] == ["feat: add app"]
+
+
+def test_commit_on_a_feature_branch_records_that_branch(repo):
+    commit(repo, "feat: add app", "src/app.py")
+    git(repo, "checkout", "--quiet", "-b", "retries")
+    commit(repo, "fix: retry on timeout", "src/client.py")
+
+    branches = {event.title: event.branch for event in collect_all(repo)}
+    assert branches == {"feat: add app": "main", "fix: retry on timeout": "retries"}

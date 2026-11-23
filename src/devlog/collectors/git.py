@@ -9,7 +9,7 @@ from devlog.collectors.base import Runner
 from devlog.events import Event
 
 _RECORD, _FIELD = "\x1e", "\x1f"
-_LOG_FORMAT = f"--format=%x1e{'%x1f'.join(['%H', '%aI', '%s', '%b', ''])}"
+_LOG_FORMAT = f"--format=%x1e{'%x1f'.join(['%H', '%aI', '%S', '%s', '%b', ''])}"
 DEFAULT_IGNORED_FILES = (
     "*.lock",
     "package-lock.json",
@@ -30,6 +30,9 @@ _GITHUB_REMOTE = re.compile(
 
 class GitCollector:
     """One event per non-merge commit the repo's configured user authored, on any branch.
+
+    An event's branch is the one git reached the commit through. That is the branch it was made
+    on while that branch is unmerged, and a best guess afterwards.
 
     Files matching `ignored_files` (globs, at any depth) are left out, and so is a commit that
     touches nothing else.
@@ -56,10 +59,12 @@ class GitCollector:
     def _repo_events(self, repo: Path, start: datetime) -> list[Event]:
         author = self._git(repo, "config", "user.email").strip()
         link_prefix = _link_prefix(repo.name, self._git(repo, "ls-remote", "--get-url", "origin"))
+        remotes = self._git(repo, "remote").split()
         log = self._git(
             repo,
             "log",
             "--branches",
+            "--exclude=*/HEAD",
             "--remotes",
             "--no-merges",
             "--no-renames",
@@ -70,7 +75,9 @@ class GitCollector:
             "--",
             *self._excludes,
         )
-        return [_event(record, repo.name, link_prefix) for record in log.split(_RECORD)[1:]]
+        return [
+            _event(record, repo.name, link_prefix, remotes) for record in log.split(_RECORD)[1:]
+        ]
 
 
 def _link_prefix(repo_name: str, remote: str) -> str:
@@ -80,8 +87,8 @@ def _link_prefix(repo_name: str, remote: str) -> str:
     return f"https://github.com/{match['slug']}/commit/"
 
 
-def _event(record: str, repo_name: str, link_prefix: str) -> Event:
-    sha, authored, subject, message, numstat = record.split(_FIELD)
+def _event(record: str, repo_name: str, link_prefix: str, remotes: Sequence[str]) -> Event:
+    sha, authored, ref, subject, message, numstat = record.split(_FIELD)
     changes = [line.split("\t", maxsplit=2) for line in numstat.splitlines() if line]
     return Event(
         time=datetime.fromisoformat(authored),
@@ -91,7 +98,14 @@ def _event(record: str, repo_name: str, link_prefix: str) -> Event:
         body="\n\n".join(part for part in (message.strip(), _stats(changes)) if part),
         link=f"{link_prefix}{sha}",
         files=tuple(path for _, _, path in changes),
+        branch=_branch(ref, remotes),
     )
+
+
+def _branch(ref: str, remotes: Sequence[str]) -> str | None:
+    prefixes = (f"{remote}/" for remote in remotes)
+    prefix = next((prefix for prefix in prefixes if ref.startswith(prefix)), "")
+    return ref.removeprefix(prefix) or None
 
 
 def _stats(changes: Sequence[Sequence[str]]) -> str:

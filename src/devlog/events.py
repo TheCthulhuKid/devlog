@@ -18,6 +18,7 @@ class Event(BaseModel):
     body: str
     link: str = Field(min_length=1)
     files: tuple[str, ...] = ()
+    branch: str | None = None
 
 
 def write_events(events: Iterable[Event], path: Path) -> None:
