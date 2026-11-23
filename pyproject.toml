@@ -7,10 +7,12 @@ authors = [
     { name = "Marc", email = "gileadslostson@gmail.com" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "pydantic>=2.14.4",
+]
 
 [project.scripts]
-devlog = "devlog:main"
+devlog = "devlog.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.13.7,<0.14.0"]
