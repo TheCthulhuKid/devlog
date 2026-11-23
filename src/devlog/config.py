@@ -12,7 +12,7 @@ DEFAULT_CONFIG_PATH = Path("~/.config/devlog/config.toml")
 def _existing_directory(path: Path) -> Path:
     if not path.is_dir():
         raise ValueError(f"{path} is not a directory")
-    return path
+    return path.resolve()
 
 
 UserPath = Annotated[Path, AfterValidator(Path.expanduser)]

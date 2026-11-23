@@ -1,9 +1,19 @@
-"""The protocol every collector implements."""
+"""What collectors share: the protocol they implement and how they run commands."""
 
+import subprocess
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from typing import Protocol
 
 from devlog.events import Event
+
+Runner = Callable[[Sequence[str]], str]
+
+
+def run_command(args: Sequence[str]) -> str:
+    """Run a command and return its output. A failing command raises `CalledProcessError`."""
+    result = subprocess.run(args, check=True, capture_output=True, text=True, encoding="utf-8")
+    return result.stdout
 
 
 class Collector(Protocol):
