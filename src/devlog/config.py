@@ -16,7 +16,7 @@ def _existing_directory(path: Path) -> Path:
 
 
 UserPath = Annotated[Path, AfterValidator(Path.expanduser)]
-RepoPath = Annotated[UserPath, AfterValidator(_existing_directory)]
+ExistingDirectory = Annotated[UserPath, AfterValidator(_existing_directory)]
 
 
 class Config(BaseModel):
@@ -25,9 +25,10 @@ class Config(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     github_user: str
-    journal: UserPath
-    repos: tuple[RepoPath, ...]
+    journal: ExistingDirectory
+    repos: tuple[ExistingDirectory, ...]
     notes_paths: tuple[UserPath, ...] = ()
+    ignored_files: tuple[str, ...] = ()
 
 
 def load_config(path: Path) -> Config:

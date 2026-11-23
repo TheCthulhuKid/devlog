@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from devlog.collectors.base import run_command
-from devlog.collectors.git import GitCollector
+from devlog.collectors.git import AgentsFileCollector, GitCollector
 from devlog.events import Event
 
 WEEK = (datetime(2026, 11, 16, tzinfo=UTC), datetime(2026, 11, 23, tzinfo=UTC))
@@ -75,10 +75,11 @@ def commit(repo: Path, message: str, *paths: str) -> None:
     git(repo, "commit", "--quiet", "--message", message)
 
 
+ALWAYS = (datetime(2000, 1, 1, tzinfo=UTC), datetime(2100, 1, 1, tzinfo=UTC))
+
+
 def collect_all(repo: Path) -> list[Event]:
-    return GitCollector([repo], run_command).collect(
-        datetime(2000, 1, 1, tzinfo=UTC), datetime(2100, 1, 1, tzinfo=UTC)
-    )
+    return GitCollector([repo], run_command).collect(*ALWAYS)
 
 
 def test_lockfiles_are_left_out_of_changed_files(repo):
@@ -101,3 +102,16 @@ def test_commit_on_a_feature_branch_records_that_branch(repo):
 
     branches = {event.title: event.branch for event in collect_all(repo)}
     assert branches == {"feat: add app": "main", "fix: retry on timeout": "retries"}
+
+
+def test_agents_md_change_becomes_a_note_event(repo):
+    commit(repo, "feat: add app", "src/app.py")
+    commit(repo, "docs: never commit for the user", "AGENTS.md", "src/app.py")
+
+    [event] = AgentsFileCollector([repo], run_command).collect(*ALWAYS)
+    assert (event.source, event.title) == (
+        "notes",
+        "AGENTS.md changed: docs: never commit for the user",
+    )
+    assert "+docs: never commit for the user" in event.body
+    assert "src/app.py" not in event.body

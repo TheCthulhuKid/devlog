@@ -1,14 +1,48 @@
-from datetime import date
+from datetime import UTC, date, datetime
+from types import SimpleNamespace
+
+import pytest
 
 from devlog.cli import main
+from devlog.events import Event, read_events
 
 
-def test_collect_defaults_to_last_week_of_the_configured_repos(tmp_path, capsys):
-    config_file = tmp_path / "config.toml"
-    config_file.write_text(
-        f'github_user = "octocat"\njournal = "{tmp_path}"\nrepos = ["{tmp_path}"]\n'
+def event(source: str, day: int) -> Event:
+    time = datetime(2026, 11, day, tzinfo=UTC)
+    return Event(time=time, source=source, repo=None, title=f"{source} {day}", body="", link="x")
+
+
+def collector(*events: Event) -> SimpleNamespace:
+    return SimpleNamespace(collect=lambda start, end: list(events))
+
+
+@pytest.fixture
+def config_file(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(f'github_user = "octocat"\njournal = "{tmp_path}"\nrepos = []\n')
+    return path
+
+
+def test_collect_writes_all_sources_in_time_order(config_file, tmp_path, capsys):
+    collectors = [collector(event("git", 20), event("git", 17)), collector(event("notes", 18))]
+
+    main(
+        ["--config", str(config_file), "collect"],
+        today=date(2026, 11, 23),
+        build=lambda config: collectors,
     )
 
-    main(["--config", str(config_file), "collect"], today=date(2026, 11, 23))
+    events_file = tmp_path / ".devlog" / "2026-W47" / "events.jsonl"
+    assert [e.title for e in read_events(events_file)] == ["git 17", "notes 18", "git 20"]
+    assert capsys.readouterr().out.splitlines()[1:] == ["  git: 2", "  notes: 1"]
 
-    assert capsys.readouterr().out == "2026-W47: 2026-11-16 to 2026-11-22, repos: 1\n"
+
+def test_a_failing_collector_stops_the_run(config_file, tmp_path):
+    def fail(start, end):
+        raise RuntimeError("gh is not logged in")
+
+    collectors = [collector(event("git", 17)), SimpleNamespace(collect=fail)]
+
+    with pytest.raises(RuntimeError, match="gh is not logged in"):
+        main(["--config", str(config_file), "collect"], build=lambda config: collectors)
+    assert not (tmp_path / ".devlog").exists()
