@@ -6,6 +6,7 @@ from devlog.events import Event
 
 WEEK = (datetime(2026, 11, 16, tzinfo=UTC), datetime(2026, 11, 23, tzinfo=UTC))
 PULL_REQUEST = {
+    "id": "PR_1",
     "number": 12,
     "title": "Retry on timeout",
     "body": "The API drops idle connections.",
@@ -47,8 +48,11 @@ def collect(authored=(), reviews=(), comments=()) -> list[Event]:
         "issueComments": {"pageInfo": last_page, "nodes": comments},
     }
 
+    branches = [{"id": "PR_1", "headRefName": "retries"}]
+
     def run(args):
-        return json.dumps(authored if args[1] == "search" else {"data": {"user": user}})
+        data = {"user": user, "nodes": branches}
+        return json.dumps(authored if args[1] == "search" else {"data": data})
 
     return GitHubCollector("octocat", run).collect(*WEEK)
 
@@ -62,6 +66,7 @@ def test_opened_pr_becomes_an_event_with_its_description():
             title="Opened PR #12: Retry on timeout",
             body="The API drops idle connections.",
             link="https://github.com/octocat/devlog/pull/12",
+            branch="retries",
         )
     ]
 

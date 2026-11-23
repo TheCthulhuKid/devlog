@@ -14,7 +14,8 @@ The threads listed are what the fixture was built to contain, not a required ans
 | Redirect fix | one commit on `main` touching `redirect.py` | nothing shared with the rest |
 | Inbox note | "Fixed window lets a burst through" | no repo; related to rate limiting only by its text |
 
-Things to notice: the PR and issue events carry no branch; the AGENTS.md change has the same link as its
+Things to notice: the PR's opened and merged events carry its branch, but the issue events and the
+comment on the PR carry none; the AGENTS.md change has the same link as its
 commit; the PR was opened before the last commit on the branch was authored.
 
 ## week_two_repos.jsonl (11 events, three repos)

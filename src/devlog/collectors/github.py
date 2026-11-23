@@ -1,15 +1,22 @@
 """Collects the user's GitHub activity through the `gh` command."""
 
 import json
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime
+from itertools import batched
 from typing import Any
 
 from devlog.collectors.base import Runner
 from devlog.events import Event
 
-_SEARCH_FIELDS = "number,title,body,url,repository,isPullRequest,state,createdAt,closedAt"
+_SEARCH_FIELDS = "id,number,title,body,url,repository,isPullRequest,state,createdAt,closedAt"
 _SEARCH_LIMIT = 1000
+_NODES_PER_QUERY = 100
+_BRANCHES_QUERY = """
+query($ids: [ID!]!) {
+  nodes(ids: $ids) { ... on PullRequest { id headRefName } }
+}
+"""
 _REVIEWS_QUERY = """
 query($login: String!, $from: DateTime!, $to: DateTime!) {
   user(login: $login) {
@@ -40,7 +47,10 @@ query($login: String!, $after: String) {
 
 
 class GitHubCollector:
-    """Events for the pull requests and issues the user opened, closed, reviewed or commented on."""
+    """Events for the pull requests and issues the user opened, closed, reviewed or commented on.
+
+    An event for one of the user's own pull requests carries the branch it was opened from.
+    """
 
     def __init__(self, user: str, run: Runner) -> None:
         self._user = user
@@ -48,10 +58,10 @@ class GitHubCollector:
 
     def collect(self, start: datetime, end: datetime) -> list[Event]:
         """Return the user's GitHub events with `start <= time < end`."""
-        events = [*self._authored(start), *self._reviews(start, end), *self._comments(start)]
+        events = [*self._authored(start, end), *self._reviews(start, end), *self._comments(start)]
         return [event for event in events if start <= event.time < end]
 
-    def _authored(self, start: datetime) -> Iterator[Event]:
+    def _authored(self, start: datetime, end: datetime) -> Iterator[Event]:
         output = self._run(
             [
                 "gh",
@@ -67,8 +77,22 @@ class GitHubCollector:
         items = json.loads(output)
         if len(items) >= _SEARCH_LIMIT:
             raise _too_many("pull requests and issues")
-        for item in items:
-            yield from _authored_events(item)
+        moments = [
+            (item, action, time)
+            for item in items
+            for action, time in _moments(item)
+            if start <= time < end
+        ]
+        branches = self._branches({item["id"] for item, _, _ in moments if item["isPullRequest"]})
+        for item, action, time in moments:
+            yield _authored_event(item, action, time, branches.get(item["id"]))
+
+    def _branches(self, pull_request_ids: set[str]) -> dict[str, str]:
+        branches: dict[str, str] = {}
+        for ids in batched(sorted(pull_request_ids), _NODES_PER_QUERY):
+            nodes = self._graphql(_BRANCHES_QUERY, [f"ids[]={node_id}" for node_id in ids])["nodes"]
+            branches.update((node["id"], node["headRefName"]) for node in nodes)
+        return branches
 
     def _reviews(self, start: datetime, end: datetime) -> Iterator[Event]:
         user = self._query(_REVIEWS_QUERY, {"from": _utc(start), "to": _utc(end)})
@@ -88,9 +112,12 @@ class GitHubCollector:
             variables = {"after": page["pageInfo"]["endCursor"]}
 
     def _query(self, query: str, variables: dict[str, str]) -> dict[str, Any]:
-        fields = {"query": query, "login": self._user, **variables}
-        arguments = [f"--raw-field={name}={value}" for name, value in fields.items()]
-        return json.loads(self._run(["gh", "api", "graphql", *arguments]))["data"]["user"]
+        fields = {"login": self._user, **variables}
+        return self._graphql(query, [f"{name}={value}" for name, value in fields.items()])["user"]
+
+    def _graphql(self, query: str, fields: Sequence[str]) -> dict[str, Any]:
+        arguments = [f"--raw-field={field}" for field in (f"query={query}", *fields)]
+        return json.loads(self._run(["gh", "api", "graphql", *arguments]))["data"]
 
 
 def _utc(moment: datetime) -> str:
@@ -105,20 +132,23 @@ def _too_many(what: str) -> RuntimeError:
     return RuntimeError(f"GitHub has more {what} than one request returns, so some would be missed")
 
 
-def _authored_events(item: dict[str, Any]) -> Iterator[Event]:
-    kind = "PR" if item["isPullRequest"] else "issue"
-    moments = [("Opened", item["createdAt"])]
+def _moments(item: dict[str, Any]) -> Iterator[tuple[str, datetime]]:
+    yield "Opened", _time(item["createdAt"])
     if item["state"] != "open":
-        moments.append((item["state"].capitalize(), item["closedAt"]))
-    for action, moment in moments:
-        yield Event(
-            time=_time(moment),
-            source="github",
-            repo=item["repository"]["name"],
-            title=f"{action} {kind} #{item['number']}: {item['title']}",
-            body=item["body"],
-            link=item["url"],
-        )
+        yield item["state"].capitalize(), _time(item["closedAt"])
+
+
+def _authored_event(item: dict[str, Any], action: str, time: datetime, branch: str | None) -> Event:
+    kind = "PR" if item["isPullRequest"] else "issue"
+    return Event(
+        time=time,
+        source="github",
+        repo=item["repository"]["name"],
+        title=f"{action} {kind} #{item['number']}: {item['title']}",
+        body=item["body"],
+        link=item["url"],
+        branch=branch,
+    )
 
 
 def _review_event(node: dict[str, Any]) -> Event:
