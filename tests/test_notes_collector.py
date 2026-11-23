@@ -60,3 +60,13 @@ def test_plan_file_changed_this_week_becomes_an_event(tmp_path):
             link=str(tmp_path / "PLAN.md"),
         )
     ]
+
+
+def test_claude_memory_notes_are_never_collected(tmp_path):
+    memory = tmp_path / ".claude" / "projects" / "devlog" / "memory"
+    memory.mkdir(parents=True)
+    (memory / "about-the-user.md").write_text("personal")
+    in_week = datetime(2026, 11, 19, tzinfo=UTC).timestamp()
+    os.utime(memory / "about-the-user.md", (in_week, in_week))
+
+    assert NoteFilesCollector([tmp_path], repos=[]).collect(*WEEK) == []

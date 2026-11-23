@@ -1,12 +1,16 @@
 """The `devlog` command: parses arguments and prints results."""
 
 import argparse
-from collections.abc import Sequence
+from collections import Counter
+from collections.abc import Callable, Sequence
 from datetime import date
 from pathlib import Path
 
-from devlog.config import DEFAULT_CONFIG_PATH, load_config
-from devlog.week import last_complete_week, week_range
+from devlog.collectors.base import Collector
+from devlog.collectors.registry import build_collectors, collect_events
+from devlog.config import DEFAULT_CONFIG_PATH, Config, load_config
+from devlog.events import write_events
+from devlog.week import last_complete_week, week_bounds
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -25,15 +29,26 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Sequence[str] | None = None, *, today: date | None = None) -> int:
-    """Run the command line. `today` is only passed in by tests."""
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    today: date | None = None,
+    build: Callable[[Config], Sequence[Collector]] = build_collectors,
+) -> int:
+    """Run the command line. `today` and `build` are only passed in by tests."""
     parser = _build_parser()
     args = parser.parse_args(argv)
     week = args.week or last_complete_week(today or date.today())
     try:
-        start, end = week_range(week)
+        start, end = week_bounds(week)
         config = load_config(args.config)
     except (OSError, ValueError) as error:
         parser.error(str(error))
-    print(f"{week}: {start} to {end}, repos: {len(config.repos)}")
+    events = collect_events(build(config), start, end)
+    events_file = config.journal / ".devlog" / week / "events.jsonl"
+    events_file.parent.mkdir(parents=True, exist_ok=True)
+    write_events(events, events_file)
+    print(f"{week}: {len(events)} events written to {events_file}")
+    for source, count in sorted(Counter(event.source for event in events).items()):
+        print(f"  {source}: {count}")
     return 0

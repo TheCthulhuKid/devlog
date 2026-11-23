@@ -50,7 +50,7 @@ class NoteFilesCollector:
     """One event per Markdown file under the given paths, placed at the time it last changed.
 
     The body is the file's current text, cut at a fixed length. A file inside one of `repos`
-    belongs to that repo.
+    belongs to that repo. Claude Code's memory notes are never read: they can be personal.
     """
 
     def __init__(self, paths: Sequence[Path], repos: Sequence[Path]) -> None:
@@ -79,7 +79,12 @@ class NoteFilesCollector:
 def _markdown_files(path: Path) -> Iterator[Path]:
     if not path.exists():
         raise FileNotFoundError(f"notes path {path} does not exist")
-    yield from sorted(path.rglob("*.md")) if path.is_dir() else [path]
+    files = sorted(path.rglob("*.md")) if path.is_dir() else [path]
+    yield from (file for file in files if not _is_claude_memory(file))
+
+
+def _is_claude_memory(file: Path) -> bool:
+    return file.parent.name == "memory" and ".claude" in file.parts
 
 
 def _dated_notes(text: str) -> list[tuple[date, list[str]]]:
