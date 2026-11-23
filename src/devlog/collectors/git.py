@@ -1,9 +1,10 @@
-"""Collects the user's commits from local git repositories."""
+"""Collects the user's commits, and their changes to AGENTS.md, from local git repositories."""
 
 import re
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
+from typing import NamedTuple
 
 from devlog.collectors.base import Runner
 from devlog.events import Event
@@ -50,34 +51,83 @@ class GitCollector:
 
     def collect(self, start: datetime, end: datetime) -> list[Event]:
         """Return the commits authored in `start <= time < end`, across all repos."""
-        events = [event for repo in self._repos for event in self._repo_events(repo, start)]
-        return [event for event in events if start <= event.time < end]
-
-    def _git(self, repo: Path, *args: str) -> str:
-        return self._run(["git", "-C", str(repo), "-c", "core.quotePath=false", *args])
-
-    def _repo_events(self, repo: Path, start: datetime) -> list[Event]:
-        author = self._git(repo, "config", "user.email").strip()
-        link_prefix = _link_prefix(repo.name, self._git(repo, "ls-remote", "--get-url", "origin"))
-        remotes = self._git(repo, "remote").split()
-        log = self._git(
-            repo,
-            "log",
-            "--branches",
-            "--exclude=*/HEAD",
-            "--remotes",
-            "--no-merges",
-            "--no-renames",
-            "--numstat",
-            f"--author={author}",
-            f"--since={start.isoformat()}",
-            _LOG_FORMAT,
-            "--",
-            *self._excludes,
-        )
+        log_args = ("--no-renames", "--numstat", "--", *self._excludes)
         return [
-            _event(record, repo.name, link_prefix, remotes) for record in log.split(_RECORD)[1:]
+            _commit_event(repo.name, commit)
+            for repo in self._repos
+            for commit in _commits(self._run, repo, start, end, *log_args)
         ]
+
+
+class AgentsFileCollector:
+    """One event per commit of the user's that changes an AGENTS.md, with the change as body."""
+
+    def __init__(self, repos: Sequence[Path], run: Runner) -> None:
+        self._repos = repos
+        self._run = run
+
+    def collect(self, start: datetime, end: datetime) -> list[Event]:
+        """Return the AGENTS.md changes authored in `start <= time < end`, across all repos."""
+        return [
+            Event(
+                time=commit.time,
+                source="notes",
+                repo=repo.name,
+                title=f"AGENTS.md changed: {commit.subject}",
+                body=commit.output.strip(),
+                link=commit.link,
+                branch=commit.branch,
+            )
+            for repo in self._repos
+            for commit in _commits(
+                self._run, repo, start, end, "--patch", "--", ":(glob)**/AGENTS.md"
+            )
+        ]
+
+
+class _Commit(NamedTuple):
+    time: datetime
+    link: str
+    branch: str | None
+    subject: str
+    message: str
+    output: str
+
+
+def _commits(
+    run: Runner, repo: Path, start: datetime, end: datetime, *log_args: str
+) -> list[_Commit]:
+    def git(*args: str) -> str:
+        return run(["git", "-C", str(repo), "-c", "core.quotePath=false", *args])
+
+    author = git("config", "user.email").strip()
+    link_prefix = _link_prefix(repo.name, git("ls-remote", "--get-url", "origin"))
+    remotes = git("remote").split()
+    log = git(
+        "log",
+        "--branches",
+        "--exclude=*/HEAD",
+        "--remotes",
+        "--no-merges",
+        f"--author={author}",
+        f"--since={start.isoformat()}",
+        _LOG_FORMAT,
+        *log_args,
+    )
+    commits = [_commit(record, link_prefix, remotes) for record in log.split(_RECORD)[1:]]
+    return [commit for commit in commits if start <= commit.time < end]
+
+
+def _commit(record: str, link_prefix: str, remotes: Sequence[str]) -> _Commit:
+    sha, authored, ref, subject, message, output = record.split(_FIELD)
+    return _Commit(
+        time=datetime.fromisoformat(authored),
+        link=f"{link_prefix}{sha}",
+        branch=_branch(ref, remotes),
+        subject=subject or "(no commit message)",
+        message=message.strip(),
+        output=output,
+    )
 
 
 def _link_prefix(repo_name: str, remote: str) -> str:
@@ -87,25 +137,24 @@ def _link_prefix(repo_name: str, remote: str) -> str:
     return f"https://github.com/{match['slug']}/commit/"
 
 
-def _event(record: str, repo_name: str, link_prefix: str, remotes: Sequence[str]) -> Event:
-    sha, authored, ref, subject, message, numstat = record.split(_FIELD)
-    changes = [line.split("\t", maxsplit=2) for line in numstat.splitlines() if line]
-    return Event(
-        time=datetime.fromisoformat(authored),
-        source="git",
-        repo=repo_name,
-        title=subject or "(no commit message)",
-        body="\n\n".join(part for part in (message.strip(), _stats(changes)) if part),
-        link=f"{link_prefix}{sha}",
-        files=tuple(path for _, _, path in changes),
-        branch=_branch(ref, remotes),
-    )
-
-
 def _branch(ref: str, remotes: Sequence[str]) -> str | None:
     prefixes = (f"{remote}/" for remote in remotes)
     prefix = next((prefix for prefix in prefixes if ref.startswith(prefix)), "")
     return ref.removeprefix(prefix) or None
+
+
+def _commit_event(repo_name: str, commit: _Commit) -> Event:
+    changes = [line.split("\t", maxsplit=2) for line in commit.output.splitlines() if line]
+    return Event(
+        time=commit.time,
+        source="git",
+        repo=repo_name,
+        title=commit.subject,
+        body="\n\n".join(part for part in (commit.message, _stats(changes)) if part),
+        link=commit.link,
+        files=tuple(path for _, _, path in changes),
+        branch=commit.branch,
+    )
 
 
 def _stats(changes: Sequence[Sequence[str]]) -> str:
