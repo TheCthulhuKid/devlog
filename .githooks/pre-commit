@@ -1,0 +1,5 @@
+#!/bin/sh
+# Refuses a commit that would fail CI's lint or format check. It changes no files.
+set -e
+.venv/bin/python -m ruff check .
+.venv/bin/python -m ruff format --check .
