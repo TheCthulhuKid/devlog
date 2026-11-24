@@ -80,5 +80,5 @@ def _thread(number: int, members: list[Event]) -> Thread:
         events=tuple(members),
         branches=tuple(sorted({event.branch for event in members if event.branch})),
         issue_refs=tuple(sorted({n for event in members for n in _numbers(event)})),
-        files=tuple(sorted({file for event in members for file in  event.files})),
+        files=tuple(sorted({file for event in members for file in event.files})),
     )
