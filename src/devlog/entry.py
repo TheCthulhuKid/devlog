@@ -46,6 +46,35 @@ def assemble_entry(
     )
 
 
+def drop_unsupported(
+    summarised: Sequence[tuple[Thread, ThreadSummary]],
+) -> tuple[list[tuple[Thread, ThreadSummary]], list[str]]:
+    """Return `summarised` without the claims its own thread does not support, and a report.
+
+    A claim is kept only when it cites evidence and every link is one of its thread's event links.
+    The report has one line for each claim dropped, saying why.
+    """
+    kept, report = [], []
+    for thread, summary in summarised:
+        links = {event.link for event in thread.events}
+        checked = [(claim, _problem(claim, links)) for claim in summary.claims]
+        claims = tuple(claim for claim, problem in checked if problem is None)
+        kept.append((thread, summary.model_copy(update={"claims": claims})))
+        report += [
+            f"- {thread.id}: {claim.text} ({problem})" for claim, problem in checked if problem
+        ]
+    return kept, report
+
+
+def _problem(claim: Claim, links: set[str]) -> str | None:
+    if not claim.evidence:
+        return "no evidence"
+    unknown = [link for link in claim.evidence if link not in links]
+    if unknown:
+        return f"not in its thread: {', '.join(unknown)}"
+    return None
+
+
 def _block(lines: Iterable[str]) -> str:
     return "\n".join(lines) or _EMPTY
 

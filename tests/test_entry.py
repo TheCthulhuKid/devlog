@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from devlog.entry import assemble_entry
+from devlog.entry import assemble_entry, drop_unsupported
 from devlog.events import Event
 from devlog.summarise import Claim, ClaimKind, ThreadSummary
 from devlog.templates import load
@@ -59,3 +59,22 @@ def test_entry_template_has_a_place_for_every_field():
 
     expected = [WEEK, "2026-11-16", "2026-11-22", WHAT_CHANGED, *(claim.text for claim in claims)]
     assert [text for text in expected if text not in entry] == []
+
+
+def test_claim_without_evidence_is_dropped():
+    supported = Claim(text="Chose a sliding window.", kind=ClaimKind.DECISION, evidence=(PR,))
+    bare = Claim(text="Redis was too slow.", kind=ClaimKind.LESSON, evidence=())
+
+    [(_, summary)], report = drop_unsupported([summarised(supported, bare)])
+
+    assert summary.claims == (supported,)
+    assert report == ["- shortener-1: Redis was too slow. (no evidence)"]
+
+
+def test_claim_citing_an_unknown_link_is_dropped_and_reported():
+    invented = Claim(text="Reverted the cache.", kind=ClaimKind.DEAD_END, evidence=(PR, COMMIT))
+
+    [(_, summary)], report = drop_unsupported([summarised(invented)])
+
+    assert summary.claims == ()
+    assert report == [f"- shortener-1: Reverted the cache. (not in its thread: {COMMIT})"]
