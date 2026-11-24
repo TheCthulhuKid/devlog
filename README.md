@@ -63,8 +63,9 @@ entry to `.devlog/<week>/draft.md` in the journal folder. It needs the week's `e
 `collect` first, and an Anthropic API key in the `ANTHROPIC_API_KEY` environment variable. Each thread
 is one paid API request, or a few when the model reads a diff or a file.
 
-Every statement in the draft links to the commit, pull request or note behind it; a commit from a repo
-with no GitHub remote is shown as its short hash. A statement is left out when it cites no evidence, or
-evidence from outside its own thread. `draft` prints how many were left out and lists them in
-`.devlog/<week>/dropped.md`, which is rewritten on every run. A thread the model could not summarise is
-skipped and listed there too, and the command then exits with status 1.
+Every statement in the draft names the commit, pull request or note behind it. Evidence on GitHub is
+a link; evidence with no web page (a note, or a commit from a repo with no GitHub remote) is named in
+code style instead. A statement is left out when it cites no evidence, or evidence from outside its own
+thread. `draft` prints how many were left out and lists them in `.devlog/<week>/dropped.md`, which is
+rewritten on every run. A thread the model could not summarise is skipped and listed there too, and the
+command then exits with status 1.
