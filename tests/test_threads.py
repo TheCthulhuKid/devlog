@@ -1,6 +1,7 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
-from devlog.events import read_events
+from devlog.events import Event, read_events
 from devlog.threads import group_events
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -49,3 +50,19 @@ def test_unrelated_work_on_main_stays_apart():
     thread = thread_of("week_two_repos", "fix: undo keeps the names typed since")
 
     assert "feat: fold the initiative tracker" not in thread
+
+
+def test_shared_files_do_not_join_separate_branches():
+    def commit(branch: str) -> Event:
+        return Event(
+            time=datetime(2026, 11, 17, tzinfo=UTC),
+            source="git",
+            repo="shortener",
+            title=f"docs: describe {branch}",
+            body="",
+            link=f"shortener@{branch}",
+            files=("README.md",),
+            branch=branch,
+        )
+
+    assert len(group_events([commit("rate-limit"), commit("billing")])) == 2

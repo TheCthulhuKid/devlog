@@ -51,13 +51,19 @@ def group_events(events: Sequence[Event]) -> list[Thread]:
 
 def _keys(event: Event) -> set[Key]:
     keys: set[Key] = set()
+
     if not event.repo:
         return keys
+
+    numbers = re.findall(r"#(\d+)", f"{event.title}\n{event.body}")
+    for number in numbers:
+        keys.add((event.repo, "issue", int(number)))
+
     if event.branch and event.branch not in {"main", "master"}:
         keys.add((event.repo, "branch", event.branch))
-    issues = re.findall(r"#(\d+)", f"{event.title}\n{event.body}")
-    for issue in issues:
-        keys.add((event.repo, "issue", int(issue)))
+        return keys
+
+    # Only for files changed on main, otherwise it groups everything too greedily
     for file in event.files:
         keys.add((event.repo, "file", file))
     return keys
