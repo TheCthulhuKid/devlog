@@ -1,6 +1,7 @@
 """The `devlog` command: parses arguments and prints results."""
 
 import argparse
+import sys
 from collections import Counter
 from collections.abc import Callable, Sequence
 from datetime import date, datetime
@@ -56,6 +57,10 @@ def _report_draft(week: str, result: DraftResult) -> int:
     return 1 if result.failed else 0
 
 
+def _show_progress(done: int, total: int) -> None:
+    print(f"  {done}/{total} threads summarised", file=sys.stderr)
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -75,7 +80,9 @@ def main(
     if args.command == "collect":
         return _collect(week, config, build(config), start, end)
     try:
-        result = draft_week(week, config.journal, config.repos, connect(config.model), run_command)
+        result = draft_week(
+            week, config.journal, config.repos, connect(config.model), run_command, _show_progress
+        )
     except FileNotFoundError as error:
         parser.error(str(error))
     return _report_draft(week, result)

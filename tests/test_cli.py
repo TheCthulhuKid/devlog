@@ -84,3 +84,9 @@ def test_draft_exits_with_1_when_a_thread_failed(config_file, week_folder):
         raise LLMError("the model refused")
 
     assert draft(config_file, refuse) == 1
+
+
+def test_draft_shows_progress_apart_from_its_result(config_file, week_folder, capsys):
+    draft(config_file, lambda system, prompt, output, tools: SUMMARY)
+
+    assert capsys.readouterr().err == "  1/1 threads summarised\n"

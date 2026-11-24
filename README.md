@@ -61,7 +61,8 @@ command, which must be logged in), your inbox and your note files, and writes th
 `draft` groups the week's events into threads of work, asks Claude to summarise each one, and writes the
 entry to `.devlog/<week>/draft.md` in the journal folder. It needs the week's `events.jsonl`, so run
 `collect` first, and an Anthropic API key in the `ANTHROPIC_API_KEY` environment variable. Each thread
-is one paid API request, or a few when the model reads a diff or a file.
+is one paid API request, or a few when the model reads a diff or a file. Four threads are summarised at
+a time, and a line such as `12/54 threads summarised` is printed as each one finishes.
 
 Every statement in the draft names the commit, pull request or note behind it. Evidence on GitHub is
 a link; evidence with no web page (a note, or a commit from a repo with no GitHub remote) is named in
