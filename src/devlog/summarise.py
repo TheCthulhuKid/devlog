@@ -10,20 +10,9 @@ from devlog.collectors.base import Runner
 from devlog.collectors.git import commit_sha, read_diff, read_file
 from devlog.events import Event
 from devlog.llm import LLMClient, Tool
+from devlog.templates import load
 from devlog.threads import Thread
 
-_SYSTEM = """\
-You help a developer write their weekly engineering journal. You are given the events of one \
-thread of work: commits, pull requests, comments and notes.
-
-If events don't show why something changed themselves you may read the diff or a file.
-
-Say what changed and why, then list the claims worth recording: decisions (with the alternatives \
-that were rejected, when the events show them), dead ends, lessons, open questions and next steps.
-
-Every claim must list in `evidence` the links of the events that support it, copied exactly as \
-given. Leave out anything the events do not support; a short, well-supported summary is better \
-than a complete-looking one."""
 _NOT_IN_THREAD = "Refused: that is not the link of a commit in this thread."
 
 
@@ -99,7 +88,9 @@ def summarise_thread(
 ) -> ThreadSummary:
     """Ask the LLM to summarise `thread`, showing it every event and letting it read commits."""
     prompt = "\n\n".join(_render(event) for event in thread.events)
-    return llm.complete(_SYSTEM, prompt, ThreadSummary, thread_tools(thread, repos, run))
+    return llm.complete(
+        load("summary.prompt.md"), prompt, ThreadSummary, thread_tools(thread, repos, run)
+    )
 
 
 def _render(event: Event) -> str:

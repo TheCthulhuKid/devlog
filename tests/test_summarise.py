@@ -2,6 +2,7 @@ from pathlib import Path
 
 from gitrepo import collect_all, commit
 
+import devlog.templates
 from devlog.collectors.base import run_command
 from devlog.events import read_events
 from devlog.summarise import Claim, ClaimKind, ThreadSummary, summarise_thread
@@ -25,10 +26,12 @@ class ScriptedLLM:
     def __init__(self, answer: ThreadSummary, calls: dict[str, dict] | None = None) -> None:
         self.answer = answer
         self.calls = calls or {}
+        self.systems: list[str] = []
         self.prompts: list[str] = []
         self.tool_results: list[str] = []
 
     def complete(self, system: str, prompt: str, output: type, tools=()) -> ThreadSummary:
+        self.systems.append(system)
         self.prompts.append(prompt)
         for tool in tools:
             if tool.name in self.calls:
@@ -45,6 +48,17 @@ def test_thread_events_are_all_given_to_the_model():
     [prompt] = llm.prompts
     assert all(event.link in prompt and event.title in prompt for event in thread.events)
     assert "The fixed window allowed twice the limit across a boundary." in prompt
+
+
+def test_thread_is_summarised_with_the_prompt_from_its_file(repo):
+    commit(repo, "fix: retry on timeout", "src/client.py")
+    [thread] = group_events(collect_all(repo))
+    llm = ScriptedLLM(SUMMARY)
+
+    summarise_thread(thread, llm, [repo], run_command)
+
+    prompt_file = Path(devlog.templates.__file__).parent / "summary.prompt.md"
+    assert llm.systems == [prompt_file.read_text(encoding="utf-8")]
 
 
 def test_agent_can_read_a_diff_from_its_own_thread(repo):
