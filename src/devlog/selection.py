@@ -12,7 +12,7 @@ from devlog.summarise import Claim, ThreadSummary
 from devlog.templates import load
 from devlog.threads import Thread
 
-TARGET = 15
+TARGET = 20
 
 
 class Selection(BaseModel):

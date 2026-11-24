@@ -75,8 +75,8 @@ digest of them, written by one more request per such repo; a repo with one threa
 line. The line of every thread is in `.devlog/<week>/threads.md`. If a digest fails, the entry lists
 that repo's threads instead and the command exits with status 1.
 
-A week's threads claim more than anyone rereads, so when they make more than 15 claims, one more
-request asks Claude to pick about 15 for the entry. It picks by number: the claims are printed as the
+A week's threads claim more than anyone rereads, so when they make more than 20 claims, one more
+request asks Claude to pick about 20 for the entry. It picks by number: the claims are printed as the
 thread summaries wrote them. `draft` prints how many were kept, and the rest are in
 `.devlog/<week>/unselected.md`, written as entry lines under their kind so one can be pasted back. If
 the pick fails, the draft holds every claim and the command exits with status 1.

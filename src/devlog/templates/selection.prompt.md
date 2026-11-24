@@ -20,4 +20,4 @@ Leave out:
 - all but the best of several claims that say much the same;
 - an open question or next step that another thread in the week settles or carries out.
 
-Judge the week as a whole: don't give each thread or each repository a share. Dead ends and open questions are rare, so keep one whenever it meets the bar.
+Judge the week as a whole: don't give each thread or each repository a share. Dead ends and open questions are rare, so keep one whenever it meets the bar. Always keep a next step that names a date or a deadline: it is a commitment the developer has to act on, and nothing else will remind them.
