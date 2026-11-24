@@ -23,6 +23,7 @@ _FIELDS = {
 #   https://github.com/o/r/pull/15[#issuecomment-1]           -> a PR, issue or a comment on one
 #   inbox.md#2026-11-17   or   /path/to/notes/file.md         -> a note
 _COMMIT = re.compile(r"(?:/commit/|@)([0-9a-f]{7})[0-9a-f]*$")
+_LOCAL_COMMIT = re.compile(r"[^/]+@[0-9a-f]{7,}")
 _NUMBERED = re.compile(r"/(?:pull|issues)/(\d+)")
 
 
@@ -89,9 +90,16 @@ def _label(link: str) -> str:
 
 
 def _claim_line(claim: Claim) -> str:
-    links = ", ".join(f"[{_label(link)}]({link})" for link in claim.evidence)
+    links = ", ".join(_evidence(link) for link in claim.evidence)
     return f"- {claim.text} ({links})"
 
 
 def _thread_line(thread: Thread, summary: ThreadSummary) -> str:
     return f"- **{thread.repo or 'notes'}:** {summary.what_changed} {summary.why}"
+
+
+def _evidence(link: str) -> str:
+    label = _label(link)
+    if _LOCAL_COMMIT.fullmatch(link):
+        return f"`{label}`"
+    return f"[{label}]({link})"

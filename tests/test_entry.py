@@ -38,6 +38,15 @@ def test_each_claim_lands_in_its_section_with_its_links():
     assert lessons == f"- Fixed windows leak. ([inbox.md#2026-11-17]({NOTE}))"
 
 
+def test_commit_without_a_web_link_is_shown_as_code():
+    link = "devlog@0a1b2c3d4e5f60718293a4b5c6d7e8f901234567"
+    local = Claim(text="Kept the cache local.", kind=ClaimKind.DECISION, evidence=(link,))
+
+    entry = assemble_entry(WEEK, [summarised(local)], "$decisions")
+
+    assert entry == "- Kept the cache local. (`0a1b2c3`)"
+
+
 def test_section_with_no_claims_says_nothing_this_week():
     assert assemble_entry(WEEK, [summarised()], "$dead_ends") == "Nothing this week."
 
