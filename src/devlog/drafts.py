@@ -6,9 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from devlog.collectors.base import Runner
-from devlog.entry import assemble_entry, drop_unsupported
+from devlog.entry import assemble_entry, drop_unsupported, list_claims
 from devlog.events import read_events
 from devlog.llm import LLMClient, LLMError, SavedAnswers, Usage
+from devlog.selection import select_claims
 from devlog.summarise import ThreadSummary, summarise_thread
 from devlog.templates import load
 from devlog.threads import Thread, group_events
@@ -21,10 +22,14 @@ _WORKERS = 4
 
 @dataclass(frozen=True)
 class DraftResult:
-    """Where the draft and its report were written, and what was left out."""
+    """Where the draft and its reports were written, and what was left out."""
 
     entry: Path
     report: Path
+    unselected: Path
+    kept: int
+    left_out: int
+    selection_failed: bool
     dropped: int
     failed: int
     usage: Usage
@@ -38,11 +43,12 @@ def draft_week(
     run: Runner,
     progress: Progress = lambda done, total: None,
 ) -> DraftResult:
-    """Write the draft entry for `week` and the report of what was left out of it.
+    """Write the draft entry for `week` and the reports of what was left out of it.
 
     Threads are summarised several at a time. `progress` is called after each one with how many
     are done and how many there are. Each summary is saved in the week's folder as it is made,
-    so a later run only asks the LLM about threads that are new or have changed.
+    so a later run only asks the LLM about threads that are new or have changed. The entry holds
+    the claims picked for the week, or all of them if picking fails.
     """
     folder = journal / ".devlog" / week
 
@@ -54,18 +60,31 @@ def draft_week(
     llm = SavedAnswers(llm, folder / "summaries")
 
     summarised, failures = _summarise_all(threads, llm, repos, run, progress)
-    kept, dropped = drop_unsupported(summarised)
+    supported, dropped = drop_unsupported(summarised)
+    not_selected = []
+    try:
+        kept, left_out = select_claims(supported, llm)
+    except LLMError as error:
+        kept, left_out = supported, []
+        not_selected.append(f"- week: claims not selected ({error})")
 
     entry_file = folder / "draft.md"
     entry_file.write_text(assemble_entry(week, kept, load("entry.md")), encoding="utf-8")
 
+    unselected_file = folder / "unselected.md"
+    unselected_file.write_text(list_claims(left_out), encoding="utf-8")
+
     report_file = folder / "dropped.md"
-    lines = [*failures, *dropped]
+    lines = [*failures, *not_selected, *dropped]
     report_file.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
 
     return DraftResult(
         entry=entry_file,
         report=report_file,
+        unselected=unselected_file,
+        kept=sum(len(summary.claims) for _, summary in kept),
+        left_out=len(left_out),
+        selection_failed=bool(not_selected),
         dropped=len(dropped),
         failed=len(failures),
         usage=llm.usage,

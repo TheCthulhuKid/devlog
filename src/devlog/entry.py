@@ -31,7 +31,7 @@ def assemble_entry(
 ) -> str:
     """Fill the entry `template` for `week` from each thread and its summary."""
     start, end = week_bounds(week)
-    threads = _block(_thread_line(thread, summary) for thread, summary in summarised)
+    threads = _block(thread_line(thread, summary) for thread, summary in summarised)
     claims = [claim for _, summary in summarised for claim in summary.claims]
     sections = {
         field: _block(_claim_line(claim) for claim in claims if claim.kind == kind)
@@ -66,6 +66,16 @@ def drop_unsupported(
     return kept, report
 
 
+def list_claims(claims: Sequence[Claim]) -> str:
+    """Return `claims` as entry lines under a heading for each kind, to paste into an entry."""
+    blocks = []
+    for kind in ClaimKind:
+        lines = [_claim_line(claim) for claim in claims if claim.kind == kind]
+        if lines:
+            blocks.append("".join(f"{line}\n" for line in [f"## {kind}", *lines]))
+    return "\n".join(blocks)
+
+
 def _problem(claim: Claim, links: set[str]) -> str | None:
     if not claim.evidence:
         return "no evidence"
@@ -93,7 +103,8 @@ def _claim_line(claim: Claim) -> str:
     return f"- {claim.text} ({links})"
 
 
-def _thread_line(thread: Thread, summary: ThreadSummary) -> str:
+def thread_line(thread: Thread, summary: ThreadSummary) -> str:
+    """Return the entry's line for `thread`: its repo, what changed and why."""
     return f"- **{thread.repo or 'notes'}:** {summary.what_changed} {summary.why}"
 
 

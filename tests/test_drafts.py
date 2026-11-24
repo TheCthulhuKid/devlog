@@ -8,6 +8,7 @@ from devlog.collectors.base import run_command
 from devlog.drafts import draft_week
 from devlog.events import Event, write_events
 from devlog.llm import LLMError, Usage
+from devlog.selection import TARGET, Selection
 from devlog.summarise import Claim, ClaimKind, ThreadSummary
 
 WEEK = "2026-W47"
@@ -20,6 +21,14 @@ SUMMARY = ThreadSummary(
         Claim(text="Chose a sliding window.", kind=ClaimKind.DECISION, evidence=(PR,)),
         Claim(text="Redis would be faster.", kind=ClaimKind.LESSON, evidence=()),
     ),
+)
+MANY = SUMMARY.model_copy(
+    update={
+        "claims": tuple(
+            Claim(text=f"Claim {number}.", kind=ClaimKind.DECISION, evidence=(PR,))
+            for number in range(1, TARGET + 2)
+        )
+    }
 )
 
 
@@ -133,3 +142,32 @@ def test_rerun_only_pays_for_threads_not_yet_summarised(journal):
 
     assert result.failed == 0
     assert ["billing" in prompt for prompt in asked] == [True]
+
+
+def test_draft_keeps_only_the_selected_claims_and_lists_the_rest(journal):
+    write_events([opened("shortener", PR)], journal / ".devlog" / WEEK / "events.jsonl")
+
+    def complete(system, prompt, output, tools=()):
+        return Selection(keep=(1,)) if output is Selection else MANY
+
+    result = draft_week(WEEK, journal, [], fake(complete), run_command)
+
+    assert (result.kept, result.left_out) == (1, TARGET)
+    assert "Claim 1." in result.entry.read_text()
+    assert "Claim 2." not in result.entry.read_text()
+    assert f"- Claim 2. ([#15]({PR}))" in result.unselected.read_text()
+
+
+def test_draft_keeps_every_claim_when_selection_fails(journal):
+    write_events([opened("shortener", PR)], journal / ".devlog" / WEEK / "events.jsonl")
+
+    def complete(system, prompt, output, tools=()):
+        if output is Selection:
+            raise LLMError("the model refused")
+        return MANY
+
+    result = draft_week(WEEK, journal, [], fake(complete), run_command)
+
+    assert result.selection_failed
+    assert f"Claim {TARGET + 1}." in result.entry.read_text()
+    assert "claims not selected (the model refused)" in result.report.read_text()

@@ -73,6 +73,8 @@ def test_draft_prints_where_the_entry_is_and_what_was_dropped(config_file, week_
     assert status == 0
     assert capsys.readouterr().out.splitlines() == [
         f"2026-W47: draft written to {week_folder / 'draft.md'}",
+        "  claims kept: 0 of 0",
+        f"  claims left out: {week_folder / 'unselected.md'}",
         "  claims dropped: 1",
         "  threads not summarised: 0",
         "  tokens: 1,200 in (0 from cache), 340 out",

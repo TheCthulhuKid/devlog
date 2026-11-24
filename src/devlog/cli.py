@@ -51,12 +51,15 @@ def _collect(
 
 def _report_draft(week: str, result: DraftResult) -> int:
     print(f"{week}: draft written to {result.entry}")
+    failed = " (selection failed)" if result.selection_failed else ""
+    print(f"  claims kept: {result.kept} of {result.kept + result.left_out}{failed}")
+    print(f"  claims left out: {result.unselected}")
     print(f"  claims dropped: {result.dropped}")
     print(f"  threads not summarised: {result.failed}")
     usage = result.usage
     print(f"  tokens: {usage.input:,} in ({usage.cached:,} from cache), {usage.output:,} out")
     print(f"  details: {result.report}")
-    return 1 if result.failed else 0
+    return 1 if result.failed or result.selection_failed else 0
 
 
 def _show_progress(done: int, total: int) -> None:
