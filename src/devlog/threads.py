@@ -49,14 +49,17 @@ def group_events(events: Sequence[Event]) -> list[Thread]:
     ]
 
 
+def _numbers(event: Event) -> set[int]:
+    return {int(number) for number in re.findall(r"#(\d+)", f"{event.title}\n{event.body}")}
+
+
 def _keys(event: Event) -> set[Key]:
     keys: set[Key] = set()
 
     if not event.repo:
         return keys
 
-    numbers = re.findall(r"#(\d+)", f"{event.title}\n{event.body}")
-    for number in numbers:
+    for number in _numbers(event):
         keys.add((event.repo, "issue", int(number)))
 
     if event.branch and event.branch not in {"main", "master"}:
@@ -71,4 +74,11 @@ def _keys(event: Event) -> set[Key]:
 
 def _thread(number: int, members: list[Event]) -> Thread:
     members = sorted(members, key=lambda event: event.time)
-    return Thread(id=f"thread-{number}", repo=members[0].repo, events=tuple(members))
+    return Thread(
+        id=f"thread-{number}",
+        repo=members[0].repo,
+        events=tuple(members),
+        branches=tuple(sorted({event.branch for event in members if event.branch})),
+        issue_refs=tuple(sorted({n for event in members for n in _numbers(event)})),
+        files=tuple(sorted({file for event in members for file in  event.files})),
+    )

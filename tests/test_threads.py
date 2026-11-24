@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from devlog.events import Event, read_events
-from devlog.threads import group_events
+from devlog.threads import Thread, group_events
 
 FIXTURES = Path(__file__).parent / "fixtures"
 RATE_LIMIT_COMMITS = {
@@ -20,10 +20,14 @@ RUNNER_COMMITS = {
 NOTE = "Fixed window lets a burst through at the boundary"
 
 
-def thread_of(week: str, title: str) -> set[str]:
+def thread_with(week: str, title: str) -> Thread:
     threads = group_events(read_events(FIXTURES / f"{week}.jsonl"))
     [thread] = [thread for thread in threads if title in {event.title for event in thread.events}]
-    return {event.title for event in thread.events}
+    return thread
+
+
+def thread_of(week: str, title: str) -> set[str]:
+    return {event.title for event in thread_with(week, title).events}
 
 
 def test_commits_on_one_branch_form_one_thread():
@@ -66,3 +70,16 @@ def test_shared_files_do_not_join_separate_branches():
         )
 
     assert len(group_events([commit("rate-limit"), commit("billing")])) == 2
+
+
+def test_thread_lists_its_branch_numbers_and_files():
+    thread = thread_with("week_feature_branch", "feat: count requests per api key")
+
+    assert thread.branches == ("rate-limit",)
+    assert thread.issue_refs == (14, 15)
+    assert thread.files == (
+        "src/shortener/api.py",
+        "src/shortener/limits.py",
+        "tests/test_api.py",
+        "tests/test_limits.py",
+    )
