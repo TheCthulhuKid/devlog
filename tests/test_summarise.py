@@ -68,3 +68,26 @@ def test_diff_request_outside_the_thread_is_refused(repo):
     summarise_thread(thread, llm, [repo], run_command)
 
     assert llm.tool_results == ["Refused: that is not the link of a commit in this thread."]
+
+
+def test_agent_can_read_a_file_as_it_was_at_a_commit(repo):
+    commit(repo, "fix: retry on timeout", "src/client.py")
+    commit(repo, "fix: retry twice", "src/client.py")
+    [thread] = group_events(collect_all(repo))
+    [first] = [event.link for event in thread.events if event.title == "fix: retry on timeout"]
+    llm = ScriptedLLM(SUMMARY, {"read_file": {"commit": first, "path": "src/client.py"}})
+
+    summarise_thread(thread, llm, [repo], run_command)
+
+    assert llm.tool_results == ["fix: retry on timeout"]
+
+
+def test_agent_is_told_when_a_commit_has_no_such_file(repo):
+    commit(repo, "fix: retry on timeout", "src/client.py")
+    [thread] = group_events(collect_all(repo))
+    request = {"commit": thread.events[0].link, "path": "src/server.py"}
+    llm = ScriptedLLM(SUMMARY, {"read_file": request})
+
+    summarise_thread(thread, llm, [repo], run_command)
+
+    assert llm.tool_results == ["There is no file src/server.py in that commit."]

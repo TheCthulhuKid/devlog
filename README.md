@@ -10,6 +10,13 @@ Work in progress: so far the command collects a week's events; it does not write
 uv sync --locked --group dev
 ```
 
+To have git refuse a commit that fails the Ruff lint or format check, turn on the repo's hook once
+per clone:
+
+```sh
+git config core.hooksPath .githooks
+```
+
 ## Configuration
 
 devlog reads `~/.config/devlog/config.toml`, or the file given with `--config`. Paths may start with `~`.

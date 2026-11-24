@@ -1,14 +1,18 @@
 """The LLM the journal is written with, behind a protocol so nothing else depends on a provider."""
 
+import itertools
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 import anthropic
+from anthropic.lib.tools import BetaFunctionTool
 from pydantic import BaseModel, ValidationError
 
 _MAX_TOKENS = 16000
 _FALLBACK_BETA = "server-side-fallback-2026-07-01"
+_MAX_TOOL_CALLS = 8
+_NO_CALLS_LEFT = "Refused: no tool calls are left for this answer. Answer with what you have."
 
 
 class LLMError(RuntimeError):
@@ -31,7 +35,10 @@ class LLMClient(Protocol):
     def complete[T: BaseModel](
         self, system: str, prompt: str, output: type[T], tools: Sequence[Tool] = ()
     ) -> T:
-        """Return the model's answer to `prompt`, parsed and validated as `output`."""
+        """Return the model's answer to `prompt`, parsed and validated as `output`.
+
+        The model may call `tools` first, up to a fixed number of calls per answer.
+        """
         ...
 
 
@@ -48,9 +55,30 @@ class AnthropicClient:
     def complete[T: BaseModel](
         self, system: str, prompt: str, output: type[T], tools: Sequence[Tool] = ()
     ) -> T:
-        """Return the model's answer to `prompt`, parsed and validated as `output`."""
+        """Return the model's answer to `prompt`, parsed and validated as `output`.
+
+        The model may call `tools` first, up to a fixed number of calls per answer.
+        """
+        calls = itertools.count(1)
+        failures: list[Exception] = []
+
+        def runnable(tool: Tool) -> BetaFunctionTool:
+            def call(**arguments: Any) -> str:
+                if next(calls) > _MAX_TOOL_CALLS:
+                    return _NO_CALLS_LEFT
+                request = tool.input(**arguments)
+                try:
+                    return tool.run(request)
+                except Exception as error:
+                    failures.append(error)
+                    raise
+
+            return BetaFunctionTool(
+                call, name=tool.name, description=tool.description, input_schema=tool.input
+            )
+
         try:
-            response = self._client.beta.messages.parse(
+            response = self._client.beta.messages.tool_runner(
                 model=self._model,
                 max_tokens=_MAX_TOKENS,
                 betas=[_FALLBACK_BETA],
@@ -58,9 +86,16 @@ class AnthropicClient:
                 system=system,
                 messages=[{"role": "user", "content": prompt}],
                 output_format=output,
-            )
+                tools=[runnable(tool) for tool in tools],
+                max_iterations=_MAX_TOOL_CALLS + 2,
+                thread=False,
+            ).until_done()
         except ValidationError as error:
             raise LLMError("the model's answer was cut short or did not fit the schema") from error
+
+        if failures:
+            raise LLMError("a tool failed while the model was answering") from failures[0]
+
         if response.stop_reason != "end_turn" or response.parsed_output is None:
             raise LLMError(f"the model stopped without a complete answer: {response.stop_reason}")
         return response.parsed_output
