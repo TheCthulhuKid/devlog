@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from devlog.collectors.base import run_command
+from devlog.digest import RepoDigest
 from devlog.drafts import draft_week
 from devlog.events import Event, write_events
 from devlog.llm import LLMError, Usage
@@ -171,3 +172,18 @@ def test_draft_keeps_every_claim_when_selection_fails(journal):
     assert result.selection_failed
     assert f"Claim {TARGET + 1}." in result.entry.read_text()
     assert "claims not selected (the model refused)" in result.report.read_text()
+
+
+def test_draft_shows_a_digest_per_repo_and_keeps_every_thread_line_in_a_file(journal):
+    events = [opened("shortener", PR), opened("shortener", PR.replace("15", "16"))]
+    write_events(events, journal / ".devlog" / WEEK / "events.jsonl")
+
+    def complete(system, prompt, output, tools=()):
+        return RepoDigest(text="Rate limiting landed.") if output is RepoDigest else SUMMARY
+
+    result = draft_week(WEEK, journal, [], fake(complete), run_command)
+
+    entry = result.entry.read_text()
+    assert "- **shortener:** Rate limiting landed." in entry
+    assert SUMMARY.what_changed not in entry
+    assert result.threads.read_text().count(SUMMARY.what_changed) == 2

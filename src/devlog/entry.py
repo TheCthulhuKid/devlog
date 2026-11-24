@@ -27,11 +27,18 @@ _NUMBERED = re.compile(r"/(?:pull|issues)/(\d+)")
 
 
 def assemble_entry(
-    week: str, summarised: Sequence[tuple[Thread, ThreadSummary]], template: str
+    week: str,
+    summarised: Sequence[tuple[Thread, ThreadSummary]],
+    template: str,
+    work: Sequence[str] | None = None,
 ) -> str:
-    """Fill the entry `template` for `week` from each thread and its summary."""
+    """Fill the entry `template` for `week` from each thread and its summary.
+
+    `work` is the lines saying what the week's work was; without it, each thread gets a line.
+    """
     start, end = week_bounds(week)
-    threads = _block(thread_line(thread, summary) for thread, summary in summarised)
+    if work is None:
+        work = [thread_line(thread, summary) for thread, summary in summarised]
     claims = [claim for _, summary in summarised for claim in summary.claims]
     sections = {
         field: _block(_claim_line(claim) for claim in claims if claim.kind == kind)
@@ -42,7 +49,7 @@ def assemble_entry(
         week=week,
         start=start.date(),
         end=(end - timedelta(days=1)).date(),
-        threads=threads,
+        threads=_block(work),
     )
 
 
@@ -105,7 +112,12 @@ def _claim_line(claim: Claim) -> str:
 
 def thread_line(thread: Thread, summary: ThreadSummary) -> str:
     """Return the entry's line for `thread`: its repo, what changed and why."""
-    return f"- **{thread.repo or 'notes'}:** {summary.what_changed} {summary.why}"
+    return work_line(thread.repo, f"{summary.what_changed} {summary.why}")
+
+
+def work_line(repo: str | None, text: str) -> str:
+    """Return the entry's line saying `text` about work in `repo`."""
+    return f"- **{repo or 'notes'}:** {text}"
 
 
 def _evidence(link: str) -> str:

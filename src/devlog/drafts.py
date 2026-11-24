@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from devlog.collectors.base import Runner
-from devlog.entry import assemble_entry, drop_unsupported, list_claims
+from devlog.digest import digest_threads
+from devlog.entry import assemble_entry, drop_unsupported, list_claims, thread_line
 from devlog.events import read_events
 from devlog.llm import LLMClient, LLMError, SavedAnswers, Usage
 from devlog.selection import select_claims
@@ -27,11 +28,13 @@ class DraftResult:
     entry: Path
     report: Path
     unselected: Path
+    threads: Path
     kept: int
     left_out: int
     selection_failed: bool
     dropped: int
     failed: int
+    undigested: int
     usage: Usage
 
 
@@ -48,7 +51,8 @@ def draft_week(
     Threads are summarised several at a time. `progress` is called after each one with how many
     are done and how many there are. Each summary is saved in the week's folder as it is made,
     so a later run only asks the LLM about threads that are new or have changed. The entry holds
-    the claims picked for the week, or all of them if picking fails.
+    the claims picked for the week, or all of them if picking fails, and one line per repo for
+    the week's work; the line of every thread goes to a file beside it.
     """
     folder = journal / ".devlog" / week
 
@@ -68,25 +72,33 @@ def draft_week(
         kept, left_out = supported, []
         not_selected.append(f"- week: claims not selected ({error})")
 
+    work, undigested = digest_threads(supported, llm)
+
     entry_file = folder / "draft.md"
-    entry_file.write_text(assemble_entry(week, kept, load("entry.md")), encoding="utf-8")
+    entry_file.write_text(assemble_entry(week, kept, load("entry.md"), work), encoding="utf-8")
+
+    threads_file = folder / "threads.md"
+    thread_lines = [thread_line(thread, summary) for thread, summary in supported]
+    threads_file.write_text("".join(f"{line}\n" for line in thread_lines), encoding="utf-8")
 
     unselected_file = folder / "unselected.md"
     unselected_file.write_text(list_claims(left_out), encoding="utf-8")
 
     report_file = folder / "dropped.md"
-    lines = [*failures, *not_selected, *dropped]
+    lines = [*failures, *not_selected, *undigested, *dropped]
     report_file.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
 
     return DraftResult(
         entry=entry_file,
         report=report_file,
         unselected=unselected_file,
+        threads=threads_file,
         kept=sum(len(summary.claims) for _, summary in kept),
         left_out=len(left_out),
         selection_failed=bool(not_selected),
         dropped=len(dropped),
         failed=len(failures),
+        undigested=len(undigested),
         usage=llm.usage,
     )
 

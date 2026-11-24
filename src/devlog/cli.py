@@ -56,10 +56,12 @@ def _report_draft(week: str, result: DraftResult) -> int:
     print(f"  claims left out: {result.unselected}")
     print(f"  claims dropped: {result.dropped}")
     print(f"  threads not summarised: {result.failed}")
+    print(f"  repos not digested: {result.undigested}")
+    print(f"  every thread: {result.threads}")
     usage = result.usage
     print(f"  tokens: {usage.input:,} in ({usage.cached:,} from cache), {usage.output:,} out")
     print(f"  details: {result.report}")
-    return 1 if result.failed or result.selection_failed else 0
+    return 1 if result.failed or result.selection_failed or result.undigested else 0
 
 
 def _show_progress(done: int, total: int) -> None:

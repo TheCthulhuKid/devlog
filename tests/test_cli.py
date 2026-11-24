@@ -77,6 +77,8 @@ def test_draft_prints_where_the_entry_is_and_what_was_dropped(config_file, week_
         f"  claims left out: {week_folder / 'unselected.md'}",
         "  claims dropped: 1",
         "  threads not summarised: 0",
+        "  repos not digested: 0",
+        f"  every thread: {week_folder / 'threads.md'}",
         "  tokens: 1,200 in (0 from cache), 340 out",
         f"  details: {week_folder / 'dropped.md'}",
     ]

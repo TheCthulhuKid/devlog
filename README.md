@@ -70,6 +70,11 @@ done. Changing the summary prompt or the `model` asks for every thread again. Sa
 deleted; remove the folder to start the week afresh. `draft` ends by printing the tokens the run spent,
 such as `tokens: 412,300 in (0 from cache), 96,150 out`; a run that reused every summary spends none.
 
+The entry opens with what the week's work was, one line per repo. A repo with several threads gets a
+digest of them, written by one more request per such repo; a repo with one thread keeps that thread's
+line. The line of every thread is in `.devlog/<week>/threads.md`. If a digest fails, the entry lists
+that repo's threads instead and the command exits with status 1.
+
 A week's threads claim more than anyone rereads, so when they make more than 15 claims, one more
 request asks Claude to pick about 15 for the entry. It picks by number: the claims are printed as the
 thread summaries wrote them. `draft` prints how many were kept, and the rest are in
@@ -79,6 +84,6 @@ the pick fails, the draft holds every claim and the command exits with status 1.
 Every statement in the draft names the commit, pull request or note behind it. Evidence on GitHub is
 a link; evidence with no web page (a note, or a commit from a repo with no GitHub remote) is named in
 code style instead. A statement is left out when it cites no evidence, or evidence from outside its own
-thread. `draft` prints how many were dropped and lists them in `.devlog/<week>/dropped.md`. Both
-reports are rewritten on every run. A thread the model could not summarise is skipped and listed there too, and the
+thread. `draft` prints how many were dropped and lists them in `.devlog/<week>/dropped.md`. All
+three files are rewritten on every run. A thread the model could not summarise is skipped and listed there too, and the
 command then exits with status 1.
