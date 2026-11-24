@@ -1,16 +1,22 @@
 """Summarises one work thread with the LLM: what changed, why, and claims with their evidence."""
 
+from collections.abc import Sequence
 from enum import StrEnum
+from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
+from devlog.collectors.base import Runner
+from devlog.collectors.git import commit_sha, read_diff, read_file
 from devlog.events import Event
-from devlog.llm import LLMClient
+from devlog.llm import LLMClient, Tool
 from devlog.threads import Thread
 
 _SYSTEM = """\
 You help a developer write their weekly engineering journal. You are given the events of one \
 thread of work: commits, pull requests, comments and notes.
+
+If events don't show why something changed themselves you may read the diff or a file.
 
 Say what changed and why, then list the claims worth recording: decisions (with the alternatives \
 that were rejected, when the events show them), dead ends, lessons, open questions and next steps.
@@ -18,6 +24,7 @@ that were rejected, when the events show them), dead ends, lessons, open questio
 Every claim must list in `evidence` the links of the events that support it, copied exactly as \
 given. Leave out anything the events do not support; a short, well-supported summary is better \
 than a complete-looking one."""
+_NOT_IN_THREAD = "Refused: that is not the link of a commit in this thread."
 
 
 class ClaimKind(StrEnum):
@@ -48,10 +55,51 @@ class ThreadSummary(BaseModel):
     claims: tuple[Claim, ...]
 
 
-def summarise_thread(thread: Thread, llm: LLMClient) -> ThreadSummary:
-    """Ask the LLM to summarise `thread`, showing it every event."""
+class BaseRequest(BaseModel):
+    commit: str = Field(description="The link of a commit event in this thread, copied exactly.")
+
+
+class DiffRequest(BaseRequest): ...
+
+
+class FileRequest(BaseRequest):
+    path: str = Field(description="The file's path from the repo root.")
+
+
+def thread_tools(thread: Thread, repos: Sequence[Path], run: Runner) -> list[Tool]:
+    """Return the tools for `thread`: they read only its own commits, in configured repos."""
+    paths = {repo.name: repo for repo in repos}
+    commits = {
+        event.link: (paths[event.repo], commit_sha(event.link))
+        for event in thread.events
+        if event.source == "git" and event.repo in paths
+    }
+
+    def diff(request: DiffRequest) -> str:
+        if request.commit not in commits:
+            return _NOT_IN_THREAD
+        return read_diff(run, *commits[request.commit])
+
+    def file(request: FileRequest) -> str:
+        if request.commit not in commits:
+            return _NOT_IN_THREAD
+        try:
+            return read_file(run, *commits[request.commit], request.path)
+        except FileNotFoundError:
+            return f"There is no file {request.path} in that commit."
+
+    return [
+        Tool("read_diff", "The full diff of one commit of this thread.", DiffRequest, diff),
+        Tool("read_file", "One file as it was at a commit of this thread.", FileRequest, file),
+    ]
+
+
+def summarise_thread(
+    thread: Thread, llm: LLMClient, repos: Sequence[Path], run: Runner
+) -> ThreadSummary:
+    """Ask the LLM to summarise `thread`, showing it every event and letting it read commits."""
     prompt = "\n\n".join(_render(event) for event in thread.events)
-    return llm.complete(_SYSTEM, prompt, ThreadSummary)
+    return llm.complete(_SYSTEM, prompt, ThreadSummary, thread_tools(thread, repos, run))
 
 
 def _render(event: Event) -> str:

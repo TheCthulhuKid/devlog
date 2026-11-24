@@ -1,6 +1,7 @@
 """Collects the user's commits, and their changes to AGENTS.md, from local git repositories."""
 
 import re
+import subprocess
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
@@ -92,8 +93,19 @@ def read_diff(run: Runner, repo: Path, sha: str) -> str:
 
 
 def read_file(run: Runner, repo: Path, sha: str, path: str) -> str:
-    """Return the file at `path` as it was in the commit `sha`, cut at a fixed size."""
-    return _cut(_git(run, repo, "show", f"{sha}:{path}"))
+    """Return the file at `path` as it was in the commit `sha`, cut at a fixed size.
+
+    Raises `FileNotFoundError` if the commit has no such file.
+    """
+    try:
+        return _cut(_git(run, repo, "show", f"{sha}:{path}"))
+    except subprocess.CalledProcessError as error:
+        raise FileNotFoundError(path) from error
+
+
+def commit_sha(link: str) -> str:
+    """Return the commit hash a git event's link end with."""
+    return re.split(r"[/@]", link)[-1]
 
 
 def _git(run: Runner, repo: Path, *args: str) -> str:
