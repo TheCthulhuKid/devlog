@@ -4,7 +4,12 @@ from types import SimpleNamespace
 import pytest
 
 from devlog.cli import main
-from devlog.events import Event, read_events
+from devlog.events import Event, read_events, write_events
+from devlog.llm import LLMError, Usage
+from devlog.summarise import Claim, ClaimKind, ThreadSummary
+
+GUESS = Claim(text="Redis would be faster.", kind=ClaimKind.LESSON, evidence=())
+SUMMARY = ThreadSummary(what_changed="Added a cache.", why="Slow redirects.", claims=(GUESS,))
 
 
 def event(source: str, day: int) -> Event:
@@ -21,6 +26,20 @@ def config_file(tmp_path):
     path = tmp_path / "config.toml"
     path.write_text(f'github_user = "octocat"\njournal = "{tmp_path}"\nrepos = []\n')
     return path
+
+
+@pytest.fixture
+def week_folder(tmp_path):
+    folder = tmp_path / ".devlog" / "2026-W47"
+    folder.mkdir(parents=True)
+    write_events([event("git", 17)], folder / "events.jsonl")
+    return folder
+
+
+def draft(config_file, complete) -> int:
+    llm = SimpleNamespace(complete=complete, model="fake", usage=Usage(1200, 0, 340))
+    arguments = ["--config", str(config_file), "draft", "--week", "2026-W47"]
+    return main(arguments, connect=lambda model: llm)
 
 
 def test_collect_writes_all_sources_in_time_order(config_file, tmp_path, capsys):
@@ -46,3 +65,33 @@ def test_a_failing_collector_stops_the_run(config_file, tmp_path):
     with pytest.raises(RuntimeError, match="gh is not logged in"):
         main(["--config", str(config_file), "collect"], build=lambda config: collectors)
     assert not (tmp_path / ".devlog").exists()
+
+
+def test_draft_prints_where_the_entry_is_and_what_was_dropped(config_file, week_folder, capsys):
+    status = draft(config_file, lambda system, prompt, output, tools: SUMMARY)
+
+    assert status == 0
+    assert capsys.readouterr().out.splitlines() == [
+        f"2026-W47: draft written to {week_folder / 'draft.md'}",
+        "  claims kept: 0 of 0",
+        f"  claims left out: {week_folder / 'unselected.md'}",
+        "  claims dropped: 1",
+        "  threads not summarised: 0",
+        "  repos not digested: 0",
+        f"  every thread: {week_folder / 'threads.md'}",
+        "  tokens: 1,200 in (0 from cache), 340 out",
+        f"  details: {week_folder / 'dropped.md'}",
+    ]
+
+
+def test_draft_exits_with_1_when_a_thread_failed(config_file, week_folder):
+    def refuse(system, prompt, output, tools):
+        raise LLMError("the model refused")
+
+    assert draft(config_file, refuse) == 1
+
+
+def test_draft_shows_progress_apart_from_its_result(config_file, week_folder, capsys):
+    draft(config_file, lambda system, prompt, output, tools: SUMMARY)
+
+    assert capsys.readouterr().err == "  1/1 threads summarised\n"

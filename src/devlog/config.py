@@ -29,6 +29,7 @@ class Config(BaseModel):
     repos: tuple[ExistingDirectory, ...]
     notes_paths: tuple[UserPath, ...] = ()
     ignored_files: tuple[str, ...] = ()
+    model: str = "claude-opus-5-5"
 
 
 def load_config(path: Path) -> Config:

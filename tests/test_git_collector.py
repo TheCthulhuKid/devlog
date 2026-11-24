@@ -1,10 +1,10 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
-import pytest
+from gitrepo import ALWAYS, collect_all, commit, git
 
 from devlog.collectors.base import run_command
-from devlog.collectors.git import AgentsFileCollector, GitCollector
+from devlog.collectors.git import AgentsFileCollector, GitCollector, read_diff
 from devlog.events import Event
 
 WEEK = (datetime(2026, 11, 16, tzinfo=UTC), datetime(2026, 11, 23, tzinfo=UTC))
@@ -55,33 +55,6 @@ def test_commits_outside_the_range_are_left_out():
     assert [event.title for event in collect(log)] == ["this week"]
 
 
-def git(repo: Path, *args: str) -> None:
-    run_command(["git", "-C", str(repo), "-c", "commit.gpgsign=false", *args])
-
-
-@pytest.fixture
-def repo(tmp_path):
-    git(tmp_path, "init", "--quiet", "--initial-branch=main")
-    git(tmp_path, "config", "user.email", "octocat@example.com")
-    git(tmp_path, "config", "user.name", "Octo Cat")
-    return tmp_path
-
-
-def commit(repo: Path, message: str, *paths: str) -> None:
-    for path in paths:
-        (repo / path).parent.mkdir(parents=True, exist_ok=True)
-        (repo / path).write_text(message)
-    git(repo, "add", ".")
-    git(repo, "commit", "--quiet", "--message", message)
-
-
-ALWAYS = (datetime(2000, 1, 1, tzinfo=UTC), datetime(2100, 1, 1, tzinfo=UTC))
-
-
-def collect_all(repo: Path) -> list[Event]:
-    return GitCollector([repo], run_command).collect(*ALWAYS)
-
-
 def test_lockfiles_are_left_out_of_changed_files(repo):
     commit(repo, "feat: add app", "src/app.py", "uv.lock")
 
@@ -115,3 +88,13 @@ def test_agents_md_change_becomes_a_note_event(repo):
     )
     assert "+docs: never commit for the user" in event.body
     assert "src/app.py" not in event.body
+
+
+def test_long_diff_is_cut_with_a_marker():
+    diff = "+added line\n" * 100_000
+
+    shown = read_diff(lambda args: diff, Path("/work/devlog"), "abc123")
+
+    assert len(shown) < len(diff)
+    assert diff.startswith(shown[: shown.rindex("\n")])
+    assert shown.endswith(f"of {len(diff)} characters]")
