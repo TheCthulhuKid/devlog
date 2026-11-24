@@ -1,6 +1,8 @@
 """The LLM the journal is written with, behind a protocol so nothing else depends on a provider."""
 
-from typing import Protocol
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from typing import Any, Protocol
 
 import anthropic
 from pydantic import BaseModel, ValidationError
@@ -13,10 +15,22 @@ class LLMError(RuntimeError):
     """The model did not return a complete answer."""
 
 
+@dataclass(frozen=True)
+class Tool:
+    """Anything the model might call while answering: `run` gets a validated `input` instance."""
+
+    name: str
+    description: str
+    input: type[BaseModel]
+    run: Callable[[Any], str]
+
+
 class LLMClient(Protocol):
     """Answers one prompt with a validated instance of the requested model."""
 
-    def complete[T: BaseModel](self, system: str, prompt: str, output: type[T]) -> T:
+    def complete[T: BaseModel](
+        self, system: str, prompt: str, output: type[T], tools: Sequence[Tool] = ()
+    ) -> T:
         """Return the model's answer to `prompt`, parsed and validated as `output`."""
         ...
 
@@ -31,7 +45,9 @@ class AnthropicClient:
         self._client = client
         self._model = model
 
-    def complete[T: BaseModel](self, system: str, prompt: str, output: type[T]) -> T:
+    def complete[T: BaseModel](
+        self, system: str, prompt: str, output: type[T], tools: Sequence[Tool] = ()
+    ) -> T:
         """Return the model's answer to `prompt`, parsed and validated as `output`."""
         try:
             response = self._client.beta.messages.parse(

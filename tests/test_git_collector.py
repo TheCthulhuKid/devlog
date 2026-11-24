@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from devlog.collectors.base import run_command
-from devlog.collectors.git import AgentsFileCollector, GitCollector
+from devlog.collectors.git import AgentsFileCollector, GitCollector, read_diff
 from devlog.events import Event
 
 WEEK = (datetime(2026, 11, 16, tzinfo=UTC), datetime(2026, 11, 23, tzinfo=UTC))
@@ -115,3 +115,13 @@ def test_agents_md_change_becomes_a_note_event(repo):
     )
     assert "+docs: never commit for the user" in event.body
     assert "src/app.py" not in event.body
+
+
+def test_long_diff_is_cut_with_a_marker():
+    diff = "+added line\n" * 100_000
+
+    shown = read_diff(lambda args: diff, Path("/work/devlog"), "abc123")
+
+    assert len(shown) < len(diff)
+    assert diff.startswith(shown[: shown.rindex("\n")])
+    assert shown.endswith(f"of {len(diff)} characters]")

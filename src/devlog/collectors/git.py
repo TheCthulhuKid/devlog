@@ -27,6 +27,7 @@ DEFAULT_IGNORED_FILES = (
 _GITHUB_REMOTE = re.compile(
     r"(?:https://github\.com/|(?:ssh://)?git@github\.com[:/])(?P<slug>[^/]+/[^/]+?)(?:\.git)?/?"
 )
+_MAX_OUTPUT = 20_000  # This is a guess for the moment. May need tweaking.
 
 
 class GitCollector:
@@ -85,6 +86,26 @@ class AgentsFileCollector:
         ]
 
 
+def read_diff(run: Runner, repo: Path, sha: str) -> str:
+    """Return the diff of commit `sha`, cut at a fixed size."""
+    return _cut(_git(run, repo, "show", "--format=", "--patch", sha))
+
+
+def read_file(run: Runner, repo: Path, sha: str, path: str) -> str:
+    """Return the file at `path` as it was in the commit `sha`, cut at a fixed size."""
+    return _cut(_git(run, repo, "show", f"{sha}:{path}"))
+
+
+def _git(run: Runner, repo: Path, *args: str) -> str:
+    return run(["git", "-C", str(repo), "-c", "core.quotePath=false", *args])
+
+
+def _cut(text: str) -> str:
+    if len(text) <= _MAX_OUTPUT:
+        return text
+    return f"{text[:_MAX_OUTPUT]}\n[cut: the first {_MAX_OUTPUT} of {len(text)} characters]"
+
+
 class _Commit(NamedTuple):
     time: datetime
     link: str
@@ -97,13 +118,12 @@ class _Commit(NamedTuple):
 def _commits(
     run: Runner, repo: Path, start: datetime, end: datetime, *log_args: str
 ) -> list[_Commit]:
-    def git(*args: str) -> str:
-        return run(["git", "-C", str(repo), "-c", "core.quotePath=false", *args])
-
-    author = git("config", "user.email").strip()
-    link_prefix = _link_prefix(repo.name, git("ls-remote", "--get-url", "origin"))
-    remotes = git("remote").split()
-    log = git(
+    author = _git(run, repo, "config", "user.email").strip()
+    link_prefix = _link_prefix(repo.name, _git(run, repo, "ls-remote", "--get-url", "origin"))
+    remotes = _git(run, repo, "remote").split()
+    log = _git(
+        run,
+        repo,
         "log",
         "--branches",
         "--exclude=*/HEAD",
