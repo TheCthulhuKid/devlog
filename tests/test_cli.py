@@ -5,7 +5,7 @@ import pytest
 
 from devlog.cli import main
 from devlog.events import Event, read_events, write_events
-from devlog.llm import LLMError
+from devlog.llm import LLMError, Usage
 from devlog.summarise import Claim, ClaimKind, ThreadSummary
 
 GUESS = Claim(text="Redis would be faster.", kind=ClaimKind.LESSON, evidence=())
@@ -37,7 +37,7 @@ def week_folder(tmp_path):
 
 
 def draft(config_file, complete) -> int:
-    llm = SimpleNamespace(complete=complete)
+    llm = SimpleNamespace(complete=complete, model="fake", usage=Usage(1200, 0, 340))
     arguments = ["--config", str(config_file), "draft", "--week", "2026-W47"]
     return main(arguments, connect=lambda model: llm)
 
@@ -75,6 +75,7 @@ def test_draft_prints_where_the_entry_is_and_what_was_dropped(config_file, week_
         f"2026-W47: draft written to {week_folder / 'draft.md'}",
         "  claims dropped: 1",
         "  threads not summarised: 0",
+        "  tokens: 1,200 in (0 from cache), 340 out",
         f"  details: {week_folder / 'dropped.md'}",
     ]
 

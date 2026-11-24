@@ -8,7 +8,7 @@ from pathlib import Path
 from devlog.collectors.base import Runner
 from devlog.entry import assemble_entry, drop_unsupported
 from devlog.events import read_events
-from devlog.llm import LLMClient, LLMError
+from devlog.llm import LLMClient, LLMError, SavedAnswers, Usage
 from devlog.summarise import ThreadSummary, summarise_thread
 from devlog.templates import load
 from devlog.threads import Thread, group_events
@@ -27,6 +27,7 @@ class DraftResult:
     report: Path
     dropped: int
     failed: int
+    usage: Usage
 
 
 def draft_week(
@@ -40,7 +41,8 @@ def draft_week(
     """Write the draft entry for `week` and the report of what was left out of it.
 
     Threads are summarised several at a time. `progress` is called after each one with how many
-    are done and how many there are.
+    are done and how many there are. Each summary is saved in the week's folder as it is made,
+    so a later run only asks the LLM about threads that are new or have changed.
     """
     folder = journal / ".devlog" / week
 
@@ -49,6 +51,7 @@ def draft_week(
         raise FileNotFoundError(f"no events for {week}: run `devlog collect --week {week}` first")
 
     threads = group_events(read_events(events_file))
+    llm = SavedAnswers(llm, folder / "summaries")
 
     summarised, failures = _summarise_all(threads, llm, repos, run, progress)
     kept, dropped = drop_unsupported(summarised)
@@ -61,7 +64,11 @@ def draft_week(
     report_file.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
 
     return DraftResult(
-        entry=entry_file, report=report_file, dropped=len(dropped), failed=len(failures)
+        entry=entry_file,
+        report=report_file,
+        dropped=len(dropped),
+        failed=len(failures),
+        usage=llm.usage,
     )
 
 

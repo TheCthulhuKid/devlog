@@ -53,6 +53,8 @@ def _report_draft(week: str, result: DraftResult) -> int:
     print(f"{week}: draft written to {result.entry}")
     print(f"  claims dropped: {result.dropped}")
     print(f"  threads not summarised: {result.failed}")
+    usage = result.usage
+    print(f"  tokens: {usage.input:,} in ({usage.cached:,} from cache), {usage.output:,} out")
     print(f"  details: {result.report}")
     return 1 if result.failed else 0
 

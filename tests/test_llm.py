@@ -5,7 +5,7 @@ import httpx2
 import pytest
 from pydantic import BaseModel
 
-from devlog.llm import AnthropicClient, LLMError, Tool
+from devlog.llm import AnthropicClient, LLMError, SavedAnswers, Tool, Usage
 
 
 class Summary(BaseModel):
@@ -79,3 +79,35 @@ def test_a_failing_tool_fails_the_answer():
     tool = Tool("read_diff", "The diff of a commit.", Commit, read_diff)
     with pytest.raises(LLMError, match="a tool failed"):
         client.complete("You summarise work.", "Summarise this thread.", Summary, [tool])
+
+
+def test_usage_adds_up_over_every_request_of_an_answer():
+    client = client_replying("tool_use", [TOOL_CALL])
+    tool = Tool("read_diff", "The diff of a commit.", Commit, lambda commit: "a diff")
+
+    with pytest.raises(LLMError):
+        client.complete("You summarise work.", "Summarise this thread.", Summary, [tool])
+
+    assert client.usage == Usage(input=10, cached=0, output=10)
+
+
+def test_saved_answer_is_reused_without_asking_again(tmp_path):
+    client = client_answering("end_turn", json.dumps({"what_changed": "Added retries."}))
+    first = SavedAnswers(client, tmp_path).complete("You summarise.", "This thread.", Summary)
+
+    again = SavedAnswers(client, tmp_path).complete("You summarise.", "This thread.", Summary)
+
+    assert again == first
+    assert client.usage.output == 1
+
+
+def test_changed_prompt_or_model_asks_again(tmp_path):
+    client = client_answering("end_turn", json.dumps({"what_changed": "Added retries."}))
+    saved = SavedAnswers(client, tmp_path)
+    saved.complete("You summarise.", "This thread.", Summary)
+
+    saved.complete("You summarise.", "Another thread.", Summary)
+    client.model = "claude-sonnet-5-5"
+    saved.complete("You summarise.", "This thread.", Summary)
+
+    assert client.usage.output == 3

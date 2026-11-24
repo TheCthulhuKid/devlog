@@ -7,7 +7,7 @@ import pytest
 from devlog.collectors.base import run_command
 from devlog.drafts import draft_week
 from devlog.events import Event, write_events
-from devlog.llm import LLMError
+from devlog.llm import LLMError, Usage
 from devlog.summarise import Claim, ClaimKind, ThreadSummary
 
 WEEK = "2026-W47"
@@ -24,6 +24,9 @@ SUMMARY = ThreadSummary(
 
 
 class FakeLLM:
+    model = "fake"
+    usage = Usage()
+
     def __init__(self, fails_on: str | None = None) -> None:
         self.fails_on = fails_on
 
@@ -31,6 +34,10 @@ class FakeLLM:
         if self.fails_on and self.fails_on in prompt:
             raise LLMError("the model refused")
         return SUMMARY
+
+
+def fake(complete) -> SimpleNamespace:
+    return SimpleNamespace(complete=complete, model="fake", usage=Usage())
 
 
 def opened(repo: str, link: str) -> Event:
@@ -96,7 +103,7 @@ def test_entry_keeps_the_thread_order_when_a_later_thread_finishes_first(journal
         billing_done.set()
         return SUMMARY.model_copy(update={"what_changed": prompt.splitlines()[0]})
 
-    result = draft_week(WEEK, journal, [], SimpleNamespace(complete=complete), run_command)
+    result = draft_week(WEEK, journal, [], fake(complete), run_command)
 
     entry = result.entry.read_text()
     assert entry.index("PR in shortener") < entry.index("PR in billing")
@@ -109,4 +116,20 @@ def test_an_error_that_is_not_a_failed_answer_stops_the_draft(journal):
         raise ConnectionError("no network")
 
     with pytest.raises(ConnectionError, match="no network"):
-        draft_week(WEEK, journal, [], SimpleNamespace(complete=complete), run_command)
+        draft_week(WEEK, journal, [], fake(complete), run_command)
+
+
+def test_rerun_only_pays_for_threads_not_yet_summarised(journal):
+    events = [opened("shortener", PR), opened("billing", BILLING_PR)]
+    write_events(events, journal / ".devlog" / WEEK / "events.jsonl")
+    draft_week(WEEK, journal, [], FakeLLM(fails_on="billing"), run_command)
+    asked = []
+
+    def complete(system, prompt, output, tools):
+        asked.append(prompt)
+        return SUMMARY
+
+    result = draft_week(WEEK, journal, [], fake(complete), run_command)
+
+    assert result.failed == 0
+    assert ["billing" in prompt for prompt in asked] == [True]

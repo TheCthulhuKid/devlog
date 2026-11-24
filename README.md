@@ -64,6 +64,12 @@ entry to `.devlog/<week>/draft.md` in the journal folder. It needs the week's `e
 is one paid API request, or a few when the model reads a diff or a file. Four threads are summarised at
 a time, and a line such as `12/54 threads summarised` is printed as each one finishes.
 
+Each summary is saved in `.devlog/<week>/summaries/` as soon as it is made, so running `draft` again only
+pays for threads that are new or whose events changed, and a run that stops halfway keeps what it has
+done. Changing the summary prompt or the `model` asks for every thread again. Saved summaries are never
+deleted; remove the folder to start the week afresh. `draft` ends by printing the tokens the run spent,
+such as `tokens: 412,300 in (0 from cache), 96,150 out`; a run that reused every summary spends none.
+
 Every statement in the draft names the commit, pull request or note behind it. Evidence on GitHub is
 a link; evidence with no web page (a note, or a commit from a repo with no GitHub remote) is named in
 code style instead. A statement is left out when it cites no evidence, or evidence from outside its own
