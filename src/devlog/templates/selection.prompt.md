@@ -12,10 +12,12 @@ Ask of each claim: would the developer want to read this again in six months? Pr
 - dead ends and lessons that would save time on a later project;
 - questions that are still open at the end of the week.
 
+Decisions come first. The reason behind a choice is recorded nowhere else: the code shows what was chosen, not what was rejected or why. A lesson about how a tool behaves is worth keeping, but it can be found again in the tool's documentation or by hitting the problem once more. So when a week has many decisions, about half of your picks should be decisions, and a lesson should give way to a decision of similar weight.
+
 Leave out:
 
 - a claim that only describes what the code now does;
 - all but the best of several claims that say much the same;
 - an open question or next step that another thread in the week settles or carries out.
 
-Judge the week as a whole: don't give each thread or each kind a share. Dead ends and open questions are rare, though, so keep one whenever it meets the bar.
+Judge the week as a whole: don't give each thread or each repository a share. Dead ends and open questions are rare, so keep one whenever it meets the bar.
