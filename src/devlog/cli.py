@@ -3,13 +3,15 @@
 import argparse
 from collections import Counter
 from collections.abc import Callable, Sequence
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
-from devlog.collectors.base import Collector
+from devlog.collectors.base import Collector, run_command
 from devlog.collectors.registry import build_collectors, collect_events
 from devlog.config import DEFAULT_CONFIG_PATH, Config, load_config
+from devlog.drafts import DraftResult, draft_week
 from devlog.events import write_events
+from devlog.llm import LLMClient, connect_anthropic
 from devlog.week import last_complete_week, week_bounds
 
 
@@ -24,9 +26,34 @@ def _build_parser() -> argparse.ArgumentParser:
         help="config file (default: %(default)s)",
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    collect = commands.add_parser("collect", help="gather a week's events")
-    collect.add_argument("--week", help="ISO week such as 2026-W47 (default: last complete week)")
+    helps = {"collect": "gather a week's events", "draft": "write the week's draft entry"}
+    for name, text in helps.items():
+        command = commands.add_parser(name, help=text)
+        command.add_argument(
+            "--week", help="ISO week such as 2026-W47 (default: last complete week)"
+        )
     return parser
+
+
+def _collect(
+    week: str, config: Config, collectors: Sequence[Collector], start: datetime, end: datetime
+) -> int:
+    events = collect_events(collectors, start, end)
+    events_file = config.journal / ".devlog" / week / "events.jsonl"
+    events_file.parent.mkdir(parents=True, exist_ok=True)
+    write_events(events, events_file)
+    print(f"{week}: {len(events)} events written to {events_file}")
+    for source, count in sorted(Counter(event.source for event in events).items()):
+        print(f"  {source}: {count}")
+    return 0
+
+
+def _report_draft(week: str, result: DraftResult) -> int:
+    print(f"{week}: draft written to {result.entry}")
+    print(f"  claims dropped: {result.dropped}")
+    print(f"  threads not summarised: {result.failed}")
+    print(f"  details: {result.report}")
+    return 1 if result.failed else 0
 
 
 def main(
@@ -34,8 +61,9 @@ def main(
     *,
     today: date | None = None,
     build: Callable[[Config], Sequence[Collector]] = build_collectors,
+    connect: Callable[[str], LLMClient] = connect_anthropic,
 ) -> int:
-    """Run the command line. `today` and `build` are only passed in by tests."""
+    """Run the command line. `today`, `build` and `connect` are only passed in by tests."""
     parser = _build_parser()
     args = parser.parse_args(argv)
     week = args.week or last_complete_week(today or date.today())
@@ -44,11 +72,10 @@ def main(
         config = load_config(args.config)
     except (OSError, ValueError) as error:
         parser.error(str(error))
-    events = collect_events(build(config), start, end)
-    events_file = config.journal / ".devlog" / week / "events.jsonl"
-    events_file.parent.mkdir(parents=True, exist_ok=True)
-    write_events(events, events_file)
-    print(f"{week}: {len(events)} events written to {events_file}")
-    for source, count in sorted(Counter(event.source for event in events).items()):
-        print(f"  {source}: {count}")
-    return 0
+    if args.command == "collect":
+        return _collect(week, config, build(config), start, end)
+    try:
+        result = draft_week(week, config.journal, config.repos, connect(config.model), run_command)
+    except FileNotFoundError as error:
+        parser.error(str(error))
+    return _report_draft(week, result)

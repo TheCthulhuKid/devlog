@@ -99,3 +99,8 @@ class AnthropicClient:
         if response.stop_reason != "end_turn" or response.parsed_output is None:
             raise LLMError(f"the model stopped without a complete answer: {response.stop_reason}")
         return response.parsed_output
+
+
+def connect_anthropic(model: str) -> AnthropicClient:
+    """Return a client for `model`. The SDK reads the key from `ANTHROPIC_API_KEY`."""
+    return AnthropicClient(anthropic.Anthropic(), model)

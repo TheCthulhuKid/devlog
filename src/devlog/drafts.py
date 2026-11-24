@@ -1,4 +1,4 @@
-"""Draft's a week's entry: its events in a draft entry and a report of dropped claims out."""
+"""Draft's a week's entry: its events in, a draft entry and a report of dropped claims out."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
