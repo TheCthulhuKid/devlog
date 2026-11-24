@@ -2,7 +2,7 @@
 
 Turns a week of git history, GitHub activity and notes into an engineering journal entry.
 
-Work in progress: so far the command collects a week's events; it does not write entries yet.
+Work in progress: so far the command collects a week's events and writes a draft entry from them.
 
 ## Setup
 
@@ -27,6 +27,7 @@ journal = "~/notes/journal"            # the notes repo entries are written to; 
 repos = ["~/projects/devlog"]          # git repos to read; each must exist
 notes_paths = ["~/projects/devlog/PLAN.md"]  # optional: Markdown files or folders, such as plans
 ignored_files = ["*.snap"]             # optional: extra patterns for files to leave out of commits
+model = "claude-opus-5-5"              # optional: the Claude model that writes drafts (the default)
 ```
 
 Lockfiles, minified files and other generated files are always left out of commits. Claude Code's
@@ -49,9 +50,21 @@ after a bullet belong to it. A bullet with no date heading above it is an error,
 ```sh
 devlog collect                  # the last complete week (Monday to Sunday)
 devlog collect --week 2026-W47  # a given ISO week
+devlog draft --week 2026-W47    # write that week's draft entry from its collected events
 ```
 
 `collect` reads your commits, your GitHub pull requests, issues, reviews and comments (through the `gh`
 command, which must be logged in), your inbox and your note files, and writes them, oldest first, to
 `.devlog/<week>/events.jsonl` in the journal folder. A week runs from Monday 00:00 to the next Monday
 00:00 in your local timezone. If any source fails, nothing is written.
+
+`draft` groups the week's events into threads of work, asks Claude to summarise each one, and writes the
+entry to `.devlog/<week>/draft.md` in the journal folder. It needs the week's `events.jsonl`, so run
+`collect` first, and an Anthropic API key in the `ANTHROPIC_API_KEY` environment variable. Each thread
+is one paid API request, or a few when the model reads a diff or a file.
+
+Every statement in the draft links to the commit, pull request or note behind it; a commit from a repo
+with no GitHub remote is shown as its short hash. A statement is left out when it cites no evidence, or
+evidence from outside its own thread. `draft` prints how many were left out and lists them in
+`.devlog/<week>/dropped.md`, which is rewritten on every run. A thread the model could not summarise is
+skipped and listed there too, and the command then exits with status 1.
