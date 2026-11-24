@@ -2,6 +2,10 @@
 
 $start to $end
 
+## Threads
+
+$threads
+
 ## Decisions
 
 $decisions
