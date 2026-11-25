@@ -112,3 +112,16 @@ def test_draft_shows_progress_apart_from_its_result(config_file, week_folder, ca
     draft(config_file, lambda system, prompt, output, tools: SUMMARY)
 
     assert capsys.readouterr().err == "  1/1 threads summarised\n"
+
+
+def test_stats_prints_each_weeks_edit_rate(config_file, tmp_path, capsys):
+    (tmp_path / ".devlog" / "2026-W47").mkdir(parents=True)
+    draft_file = tmp_path / ".devlog" / "2026-W47" / "draft.md"
+    draft_file.write_text("## Decisions\n\n- Use Redis.\n- Cache redirects.\n", encoding="utf-8")
+    (tmp_path / "entries").mkdir()
+    (tmp_path / "entries" / "2026-W47.md").write_text("## Decisions\n\n- Use Redis.\n")
+
+    assert main(["--config", str(config_file), "stats"]) == 0
+
+    week_row = capsys.readouterr().out.splitlines()[1]
+    assert week_row.split() == ["2026-W47", "2", "1", "1", "0", "50%"]

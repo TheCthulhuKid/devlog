@@ -13,6 +13,7 @@ from devlog.config import DEFAULT_CONFIG_PATH, Config, load_config
 from devlog.drafts import DraftResult, EntryEditedError, draft_week
 from devlog.events import write_events
 from devlog.llm import LLMClient, connect_anthropic
+from devlog.stats import journal_stats, total
 from devlog.week import last_complete_week, week_bounds
 
 
@@ -27,10 +28,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="config file (default: %(default)s)",
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    helps = {"collect": "gather a week's events", "draft": "write the week's draft entry"}
+    helps = {
+        "collect": "gather a week's events",
+        "draft": "write the week's draft entry",
+        "stats": "show how much of each draft you kept",
+    }
     parsers = {name: commands.add_parser(name, help=text) for name, text in helps.items()}
-    for command in parsers.values():
-        command.add_argument(
+    for name in ("collect", "draft"):
+        parsers[name].add_argument(
             "--week", help="ISO week such as 2026-W47 (default: last complete week)"
         )
     parsers["draft"].add_argument(
@@ -68,6 +73,25 @@ def _report_draft(week: str, result: DraftResult) -> int:
     return 1 if result.failed or result.selection_failed or result.undigested else 0
 
 
+def _stats(journal: Path) -> int:
+    weeks = journal_stats(journal)
+    if not weeks:
+        print("no week has both a draft and an entry yet")
+        return 0
+    print(f"{'week':<10}{'drafted':>8}{'kept':>6}{'removed':>9}{'added':>7}{'edit rate':>11}")
+    for week in weeks:
+        row = total(week.sections)
+        print(
+            f"{week.week:<10}{row.drafted:>8}{row.kept:>6}{row.removed:>9}{row.added:>7}"
+            f"{_percent(row.edit_rate):>11}"
+        )
+    return 0
+
+
+def _percent(rate: float | None) -> str:
+    return "-" if rate is None else f"{rate:.0%}"
+
+
 def _show_progress(done: int, total: int) -> None:
     print(f"  {done}/{total} threads summarised", file=sys.stderr)
 
@@ -82,11 +106,16 @@ def main(
     """Run the command line. `today`, `build` and `connect` are only passed in by tests."""
     parser = _build_parser()
     args = parser.parse_args(argv)
+    try:
+        config = load_config(args.config)
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
+    if args.command == "stats":
+        return _stats(config.journal)
     week = args.week or last_complete_week(today or date.today())
     try:
         start, end = week_bounds(week)
-        config = load_config(args.config)
-    except (OSError, ValueError) as error:
+    except ValueError as error:
         parser.error(str(error))
     if args.command == "collect":
         return _collect(week, config, build(config), start, end)

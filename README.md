@@ -2,7 +2,8 @@
 
 Turns a week of git history, GitHub activity and notes into an engineering journal entry.
 
-Work in progress: so far the command collects a week's events and writes a draft entry from them.
+Work in progress: so far the command collects a week's events, writes a draft entry from them and
+measures how much of each draft you kept.
 
 ## Setup
 
@@ -51,6 +52,7 @@ after a bullet belong to it. A bullet with no date heading above it is an error,
 devlog collect                  # the last complete week (Monday to Sunday)
 devlog collect --week 2026-W47  # a given ISO week
 devlog draft --week 2026-W47    # write that week's draft entry from its collected events
+devlog stats                    # how much of each week's draft you kept
 ```
 
 `collect` reads your commits, your GitHub pull requests, issues, reviews and comments (through the `gh`
@@ -90,3 +92,17 @@ code style instead. A statement is left out when it cites no evidence, or eviden
 thread. `draft` prints how many were dropped and lists them in `.devlog/<week>/dropped.md`. All
 three files are rewritten on every run. A thread the model could not summarise is skipped and listed there too, and the
 command then exits with status 1.
+
+`stats` compares every week's `draft.md` with its entry and prints one row per week, oldest first:
+
+```
+week       drafted  kept  removed  added  edit rate
+2026-W47        24    21        3      2        12%
+```
+
+The edit rate is the share of the draft's lines that are not in the entry: 1 - kept / drafted. Only
+non-blank lines under a `## ` heading count, and a line is kept when the same section of the entry
+holds it unchanged, so a reworded line counts as one removed and one added. Lines you add do not
+move the rate, and neither does the `Nothing this week.` line of an empty section. A week with no
+entry is left out. The same numbers, with each section's own, are written to `.devlog/metrics.jsonl`,
+one line per week; the file is rewritten on every run.

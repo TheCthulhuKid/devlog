@@ -83,6 +83,7 @@ def journal_stats(journal: Path) -> list[WeekEdits]:
 
     rows = [_row(week) for week in weeks]
     metrics_file = journal / ".devlog" / "metrics.jsonl"
+    metrics_file.parent.mkdir(parents=True, exist_ok=True)
     metrics_file.write_text("".join(f"{json.dumps(row)}\n" for row in rows), encoding="utf-8")
     return weeks
 
