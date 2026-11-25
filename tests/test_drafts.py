@@ -129,6 +129,28 @@ def test_an_error_that_is_not_a_failed_answer_stops_the_draft(journal):
         draft_week(WEEK, journal, [], fake(complete), run_command)
 
 
+def test_an_interrupt_cancels_the_threads_not_yet_started(journal):
+    events = [opened(f"repo{n}", f"https://github.com/octocat/repo{n}/pull/1") for n in range(20)]
+    write_events(events, journal / ".devlog" / WEEK / "events.jsonl")
+    interrupted = threading.Event()
+    asked = []
+
+    def complete(system, prompt, output, tools):
+        asked.append(prompt)
+        if len(asked) > 1:
+            interrupted.wait(timeout=5)
+        return SUMMARY
+
+    def interrupt(done, total):
+        interrupted.set()
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        draft_week(WEEK, journal, [], fake(complete), run_command, interrupt)
+
+    assert len(asked) < len(events)
+
+
 def test_rerun_only_pays_for_threads_not_yet_summarised(journal):
     events = [opened("shortener", PR), opened("billing", BILLING_PR)]
     write_events(events, journal / ".devlog" / WEEK / "events.jsonl")

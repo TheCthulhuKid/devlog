@@ -17,7 +17,6 @@ from devlog.threads import Thread, group_events
 
 Progress = Callable[[int, int], None]
 
-# Enough to cut a week's wait several times over without running into the API's rate limit.
 _WORKERS = 4
 
 
@@ -114,13 +113,16 @@ def _summarise_all(
         futures = {
             pool.submit(summarise_thread, thread, llm, repos, run): thread for thread in threads
         }
-        for done, future in enumerate(as_completed(futures), start=1):
-            error = future.exception()
-            # Anything but a failed answer is fatal: don't pay for the threads not yet started.
-            if error is not None and not isinstance(error, LLMError):
-                pool.shutdown(cancel_futures=True)
-                raise error
-            progress(done, len(threads))
+        try:
+            for done, future in enumerate(as_completed(futures), start=1):
+                error = future.exception()
+                # Anything but a failed answer is fatal: don't pay for the threads not yet started.
+                if error is not None and not isinstance(error, LLMError):
+                    raise error
+                progress(done, len(threads))
+        except BaseException:
+            pool.shutdown(cancel_futures=True)
+            raise
 
     summarised, failures = [], []
     for future, thread in futures.items():
