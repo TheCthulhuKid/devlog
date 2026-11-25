@@ -60,6 +60,12 @@ command, which must be logged in), your inbox and your note files, and writes th
 `.devlog/<week>/events.jsonl` in the journal folder. A week runs from Monday 00:00 to the next Monday
 00:00 in your local timezone. If any source fails, nothing is written.
 
+A note file that git tracks in one of your `repos` is collected from its commits: one event for each
+commit of yours that changes it, holding the change. Collecting a past week again finds the same
+notes, but an edit is not seen until it is committed. A note file git does not track is collected in
+the week it last changed, with its current text; once it is edited again, collecting the earlier
+week no longer finds it.
+
 `draft` groups the week's events into threads of work, asks Claude to summarise each one, and writes the
 entry twice in the journal folder: to `.devlog/<week>/draft.md`, which stays as generated, and to
 `entries/<week>.md`, which is yours to edit. Running `draft` again replaces both, unless you have
