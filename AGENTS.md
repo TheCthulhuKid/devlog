@@ -5,7 +5,7 @@
 - **What it is:** a command-line tool that turns a week of Marc's git history, GitHub activity and notes
   into an engineering journal entry (decisions, dead ends, lessons, open questions), each claim linked to
   the commit, PR or note behind it.
-- **Main modules:** the package is `src/devlog/`. Its planned modules are listed under "Target layout" in
+- **Main modules:** the package is `src/devlog/`. Its planned modules are listed under "Layout" in
   `PLAN.md`; a module exists only once its step is done.
 - **Domain terms:** event = one normalised item from a collector; thread = events grouped into one piece
   of work; entry = the weekly Markdown journal page; draft = the generated entry, final = the entry after
@@ -43,10 +43,11 @@
 
 - `PLAN.md` is the single source of truth for the implementation plan. Read the
   relevant step before starting, and update its **Status** when a step is completed or changes.
+- `PLAN.md` is kept locally and is not part of the repository.
 
 ## Architecture
 
-- Follow the layout under "Target layout" in `PLAN.md`. Keep the separation between data contracts, domain
+- Follow the layout under "Layout" in `PLAN.md`. Keep the separation between data contracts, domain
   logic and user-facing entry points.
 - Entry points (CLI commands, HTTP handlers, UI) only handle input and output formatting. Business logic
   belongs in a service or domain layer.
