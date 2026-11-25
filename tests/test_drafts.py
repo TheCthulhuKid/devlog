@@ -6,7 +6,7 @@ import pytest
 
 from devlog.collectors.base import run_command
 from devlog.digest import RepoDigest
-from devlog.drafts import draft_week
+from devlog.drafts import EntryEditedError, draft_week
 from devlog.events import Event, write_events
 from devlog.llm import LLMError, Usage
 from devlog.selection import TARGET, Selection
@@ -68,12 +68,43 @@ def test_draft_writes_the_entry_and_the_dropped_report(journal):
 
     result = draft_week(WEEK, journal, [], FakeLLM(), run_command)
 
-    assert result.entry == journal / ".devlog" / WEEK / "draft.md"
-    entry = result.entry.read_text()
+    entry = result.draft.read_text()
     assert "Chose a sliding window." in entry
     assert "Redis would be faster." not in entry
     assert result.dropped == 1
     assert "Redis would be faster. (no evidence)" in result.report.read_text()
+
+
+def test_draft_is_kept_beside_the_editable_entry(journal):
+    write_events([opened("shortener", PR)], journal / ".devlog" / WEEK / "events.jsonl")
+
+    result = draft_week(WEEK, journal, [], FakeLLM(), run_command)
+
+    assert result.draft == journal / ".devlog" / WEEK / "draft.md"
+    assert result.entry == journal / "entries" / f"{WEEK}.md"
+    assert result.entry.read_text() == result.draft.read_text()
+
+
+def test_an_edited_entry_is_not_overwritten(journal):
+    write_events([opened("shortener", PR)], journal / ".devlog" / WEEK / "events.jsonl")
+    entry = draft_week(WEEK, journal, [], FakeLLM(), run_command).entry
+    entry.write_text("My own words.")
+
+    with pytest.raises(EntryEditedError, match="--overwrite"):
+        draft_week(WEEK, journal, [], FakeLLM(), run_command)
+
+    assert entry.read_text() == "My own words."
+
+
+def test_an_untouched_entry_is_replaced_by_a_new_draft(journal):
+    events_file = journal / ".devlog" / WEEK / "events.jsonl"
+    write_events([opened("shortener", PR)], events_file)
+    draft_week(WEEK, journal, [], FakeLLM(), run_command)
+    write_events([opened("shortener", PR), opened("billing", BILLING_PR)], events_file)
+
+    result = draft_week(WEEK, journal, [], FakeLLM(), run_command)
+
+    assert "billing" in result.entry.read_text()
 
 
 def test_a_thread_the_llm_fails_on_is_skipped_and_reported(journal):

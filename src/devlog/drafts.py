@@ -20,10 +20,15 @@ Progress = Callable[[int, int], None]
 _WORKERS = 4
 
 
+class EntryEditedError(Exception):
+    """The week's entry was edited after it was drafter, so a new draft would lose the edits."""
+
+
 @dataclass(frozen=True)
 class DraftResult:
     """Where the draft and its reports were written, and what was left out."""
 
+    draft: Path
     entry: Path
     report: Path
     unselected: Path
@@ -44,6 +49,7 @@ def draft_week(
     llm: LLMClient,
     run: Runner,
     progress: Progress = lambda done, total: None,
+    overwrite: bool = False,
 ) -> DraftResult:
     """Write the draft entry for `week` and the reports of what was left out of it.
 
@@ -51,7 +57,8 @@ def draft_week(
     are done and how many there are. Each summary is saved in the week's folder as it is made,
     so a later run only asks the LLM about threads that are new or have changed. The entry holds
     the claims picked for the week, or all of them if picking fails, and one line per repo for
-    the week's work; the line of every thread goes to a file beside it.
+    the week's work; the line of every thread goes to a file beside it. If a file has been edited it
+    won't be overwritten unless the `overwrite` flag is set.
     """
     folder = journal / ".devlog" / week
 
@@ -73,8 +80,16 @@ def draft_week(
 
     work, undigested = digest_threads(supported, llm)
 
-    entry_file = folder / "draft.md"
-    entry_file.write_text(assemble_entry(week, kept, load("entry.md"), work), encoding="utf-8")
+    draft_file = folder / "draft.md"
+    entry_file = journal / "entries" / f"{week}.md"
+    text = assemble_entry(week, kept, load("entry.md"), work)
+    if not overwrite and _edited(entry_file, draft_file):
+        raise EntryEditedError(
+            f"{entry_file} was edited after it was drafted: pass `--overwrite` to replace it."
+        )
+    draft_file.write_text(text, encoding="utf-8")
+    entry_file.parent.mkdir(exist_ok=True)
+    entry_file.write_text(text, encoding="utf-8")
 
     threads_file = folder / "threads.md"
     thread_lines = [thread_line(thread, summary) for thread, summary in supported]
@@ -88,6 +103,7 @@ def draft_week(
     report_file.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
 
     return DraftResult(
+        draft=draft_file,
         entry=entry_file,
         report=report_file,
         unselected=unselected_file,
@@ -100,6 +116,15 @@ def draft_week(
         undigested=len(undigested),
         usage=llm.usage,
     )
+
+
+def _edited(entry_file: Path, draft_file: Path) -> bool:
+    if not entry_file.exists():
+        return False
+    # If no draft exists, it is mine
+    if not draft_file.exists():
+        return True
+    return entry_file.read_text(encoding="utf-8") != draft_file.read_text("utf-8")
 
 
 def _summarise_all(

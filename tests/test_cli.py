@@ -36,9 +36,9 @@ def week_folder(tmp_path):
     return folder
 
 
-def draft(config_file, complete) -> int:
+def draft(config_file, complete, *options: str) -> int:
     llm = SimpleNamespace(complete=complete, model="fake", usage=Usage(1200, 0, 340))
-    arguments = ["--config", str(config_file), "draft", "--week", "2026-W47"]
+    arguments = ["--config", str(config_file), "draft", "--week", "2026-W47", *options]
     return main(arguments, connect=lambda model: llm)
 
 
@@ -67,12 +67,15 @@ def test_a_failing_collector_stops_the_run(config_file, tmp_path):
     assert not (tmp_path / ".devlog").exists()
 
 
-def test_draft_prints_where_the_entry_is_and_what_was_dropped(config_file, week_folder, capsys):
+def test_draft_prints_where_the_entry_is_and_what_was_dropped(
+    config_file, week_folder, tmp_path, capsys
+):
     status = draft(config_file, lambda system, prompt, output, tools: SUMMARY)
 
     assert status == 0
     assert capsys.readouterr().out.splitlines() == [
         f"2026-W47: draft written to {week_folder / 'draft.md'}",
+        f"  entry to edit: {tmp_path / 'entries' / '2026-W47.md'}",
         "  claims kept: 0 of 0",
         f"  claims left out: {week_folder / 'unselected.md'}",
         "  claims dropped: 1",
@@ -82,6 +85,20 @@ def test_draft_prints_where_the_entry_is_and_what_was_dropped(config_file, week_
         "  tokens: 1,200 in (0 from cache), 340 out",
         f"  details: {week_folder / 'dropped.md'}",
     ]
+
+
+def test_draft_overwrite_replaces_an_edited_entry(config_file, week_folder, tmp_path):
+    def complete(system, prompt, output, tools):
+        return SUMMARY
+
+    draft(config_file, complete)
+    entry = tmp_path / "entries" / "2026-W47.md"
+    entry.write_text("My own words.")
+
+    with pytest.raises(SystemExit):
+        draft(config_file, complete)
+    assert draft(config_file, complete, "--overwrite") == 0
+    assert entry.read_text() == (week_folder / "draft.md").read_text()
 
 
 def test_draft_exits_with_1_when_a_thread_failed(config_file, week_folder):
