@@ -96,6 +96,35 @@ def _show_progress(done: int, total: int) -> None:
     print(f"  {done}/{total} threads summarised", file=sys.stderr)
 
 
+def _load(parser: argparse.ArgumentParser, path: Path) -> Config:
+    try:
+        return load_config(path)
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
+
+
+def _week(
+    parser: argparse.ArgumentParser, given: str | None, today: date
+) -> tuple[str, datetime, datetime]:
+    week = given or last_complete_week(today)
+    try:
+        return week, *week_bounds(week)
+    except ValueError as error:
+        parser.error(str(error))
+
+
+def _draft(
+    parser: argparse.ArgumentParser, week: str, config: Config, llm: LLMClient, overwrite: bool
+) -> int:
+    try:
+        result = draft_week(
+            week, config.journal, config.repos, llm, run_command, _show_progress, overwrite
+        )
+    except (FileNotFoundError, EntryEditedError) as error:
+        parser.error(str(error))
+    return +_report_draft(week, result)
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -106,29 +135,10 @@ def main(
     """Run the command line. `today`, `build` and `connect` are only passed in by tests."""
     parser = _build_parser()
     args = parser.parse_args(argv)
-    try:
-        config = load_config(args.config)
-    except (OSError, ValueError) as error:
-        parser.error(str(error))
+    config = _load(parser, args.config)
     if args.command == "stats":
         return _stats(config.journal)
-    week = args.week or last_complete_week(today or date.today())
-    try:
-        start, end = week_bounds(week)
-    except ValueError as error:
-        parser.error(str(error))
+    week, start, end = _week(parser, args.week, today or date.today())
     if args.command == "collect":
         return _collect(week, config, build(config), start, end)
-    try:
-        result = draft_week(
-            week,
-            config.journal,
-            config.repos,
-            connect(config.model),
-            run_command,
-            _show_progress,
-            overwrite=args.overwrite,
-        )
-    except (FileNotFoundError, EntryEditedError) as error:
-        parser.error(str(error))
-    return _report_draft(week, result)
+    return _draft(parser, week, config, connect(config.model), args.overwrite)
