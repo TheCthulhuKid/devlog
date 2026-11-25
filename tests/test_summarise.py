@@ -105,3 +105,14 @@ def test_agent_is_told_when_a_commit_has_no_such_file(repo):
     summarise_thread(thread, llm, [repo], run_command)
 
     assert llm.tool_results == ["There is no file src/server.py in that commit."]
+
+
+def test_a_binary_file_does_not_fail_the_thread(repo):
+    (repo / "menu.txt").write_bytes("café".encode("latin-1"))
+    commit(repo, "docs: add the menu")
+    [thread] = group_events(collect_all(repo))
+    llm = ScriptedLLM(SUMMARY, {"read_file": {"commit": thread.events[0].link, "path": "menu.txt"}})
+
+    summarise_thread(thread, llm, [repo], run_command)
+
+    assert llm.tool_results == ["caf�"]
