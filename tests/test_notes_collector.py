@@ -2,7 +2,9 @@ import os
 from datetime import UTC, datetime
 
 import pytest
+from gitrepo import ALWAYS, commit
 
+from devlog.collectors.base import run_command
 from devlog.collectors.notes import InboxCollector, InboxError, NoteFilesCollector
 from devlog.events import Event
 
@@ -44,20 +46,30 @@ def test_inbox_note_without_a_date_is_reported_not_dropped(tmp_path):
         collect(tmp_path, "# Inbox\n\n- a thought with no date\n")
 
 
-def test_plan_file_changed_this_week_becomes_an_event(tmp_path):
+def test_a_tracked_note_file_is_still_collected_after_a_later_edit(repo):
+    commit(repo, "docs: plan the retries", "PLAN.md", "src/app.py")
+    (repo / "PLAN.md").write_text("edited the week after")
+
+    [event] = NoteFilesCollector([repo / "PLAN.md"], [repo], run_command).collect(*ALWAYS)
+    assert event.title == "Notes changed: docs: plan the retries"
+    assert "+docs: plan the retries" in event.body
+    assert "src/app.py" not in event.body
+
+
+def test_an_untracked_note_file_is_placed_at_the_time_it_last_changed(repo):
     changed = datetime(2026, 11, 19, 15, tzinfo=UTC)
     for name, modified in (("PLAN.md", changed), ("old.md", datetime(2026, 11, 1, tzinfo=UTC))):
-        (tmp_path / name).write_text("Step 2: done")
-        os.utime(tmp_path / name, (modified.timestamp(), modified.timestamp()))
+        (repo / name).write_text("Step 2: done")
+        os.utime(repo / name, (modified.timestamp(), modified.timestamp()))
 
-    assert NoteFilesCollector([tmp_path], repos=[tmp_path]).collect(*WEEK) == [
+    assert NoteFilesCollector([repo], [repo], run_command).collect(*WEEK) == [
         Event(
             time=changed,
             source="notes",
-            repo=tmp_path.name,
+            repo=repo.name,
             title="PLAN.md changed",
             body="Step 2: done",
-            link=str(tmp_path / "PLAN.md"),
+            link=str(repo / "PLAN.md"),
         )
     ]
 
@@ -69,4 +81,4 @@ def test_claude_memory_notes_are_never_collected(tmp_path):
     in_week = datetime(2026, 11, 19, tzinfo=UTC).timestamp()
     os.utime(memory / "about-the-user.md", (in_week, in_week))
 
-    assert NoteFilesCollector([tmp_path], repos=[]).collect(*WEEK) == []
+    assert NoteFilesCollector([tmp_path], [], run_command).collect(*WEEK) == []

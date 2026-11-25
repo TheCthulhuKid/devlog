@@ -57,7 +57,7 @@ class GitCollector:
         return [
             _commit_event(repo.name, commit)
             for repo in self._repos
-            for commit in _commits(self._run, repo, start, end, *log_args)
+            for commit in commits(self._run, repo, start, end, *log_args)
         ]
 
 
@@ -81,7 +81,7 @@ class AgentsFileCollector:
                 branch=commit.branch,
             )
             for repo in self._repos
-            for commit in _commits(
+            for commit in commits(
                 self._run, repo, start, end, "--patch", "--", ":(glob)**/AGENTS.md"
             )
         ]
@@ -103,6 +103,12 @@ def read_file(run: Runner, repo: Path, sha: str, path: str) -> str:
         raise FileNotFoundError(path) from error
 
 
+def tracked_files(run: Runner, repo: Path) -> set[Path]:
+    """Return the files git tracks in `repo`, as full paths."""
+    listing = _git(run, repo, "ls-files", "-z")
+    return {repo / name for name in listing.split("\0") if name}
+
+
 def commit_sha(link: str) -> str:
     """Return the commit hash a git event's link end with."""
     return re.split(r"[/@]", link)[-1]
@@ -118,7 +124,9 @@ def _cut(text: str) -> str:
     return f"{text[:_MAX_OUTPUT]}\n[cut: the first {_MAX_OUTPUT} of {len(text)} characters]"
 
 
-class _Commit(NamedTuple):
+class Commit(NamedTuple):
+    """One commit as `commits` read it; `output` is what the extra log arguments printed."""
+
     time: datetime
     link: str
     branch: str | None
@@ -127,9 +135,13 @@ class _Commit(NamedTuple):
     output: str
 
 
-def _commits(
+def commits(
     run: Runner, repo: Path, start: datetime, end: datetime, *log_args: str
-) -> list[_Commit]:
+) -> list[Commit]:
+    """Return the user's non-merge commits authored in `start <= time < end`, on any branch.
+
+    `log_args` are passed to `git log`: what to print for each commit, and which paths to keep.
+    """
     author = _git(run, repo, "config", "user.email").strip()
     link_prefix = _link_prefix(repo.name, _git(run, repo, "ls-remote", "--get-url", "origin"))
     remotes = _git(run, repo, "remote").split()
@@ -150,9 +162,9 @@ def _commits(
     return [commit for commit in commits if start <= commit.time < end]
 
 
-def _commit(record: str, link_prefix: str, remotes: Sequence[str]) -> _Commit:
+def _commit(record: str, link_prefix: str, remotes: Sequence[str]) -> Commit:
     sha, authored, ref, subject, message, output = record.split(_FIELD)
-    return _Commit(
+    return Commit(
         time=datetime.fromisoformat(authored),
         link=f"{link_prefix}{sha}",
         branch=_branch(ref, remotes),
@@ -175,7 +187,7 @@ def _branch(ref: str, remotes: Sequence[str]) -> str | None:
     return ref.removeprefix(prefix) or None
 
 
-def _commit_event(repo_name: str, commit: _Commit) -> Event:
+def _commit_event(repo_name: str, commit: Commit) -> Event:
     changes = [line.split("\t", maxsplit=2) for line in commit.output.splitlines() if line]
     return Event(
         time=commit.time,
