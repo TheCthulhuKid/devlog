@@ -59,7 +59,10 @@ command, which must be logged in), your inbox and your note files, and writes th
 00:00 in your local timezone. If any source fails, nothing is written.
 
 `draft` groups the week's events into threads of work, asks Claude to summarise each one, and writes the
-entry to `.devlog/<week>/draft.md` in the journal folder. It needs the week's `events.jsonl`, so run
+entry twice in the journal folder: to `.devlog/<week>/draft.md`, which stays as generated, and to
+`entries/<week>.md`, which is yours to edit. Running `draft` again replaces both, unless you have
+edited the entry: then it stops before asking Claude anything, and `--overwrite` replaces your edits
+with the new draft. It needs the week's `events.jsonl`, so run
 `collect` first, and an Anthropic API key in the `ANTHROPIC_API_KEY` environment variable. Each thread
 is one paid API request, or a few when the model reads a diff or a file. Four threads are summarised at
 a time, and a line such as `12/54 threads summarised` is printed as each one finishes.

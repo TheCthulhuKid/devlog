@@ -21,12 +21,12 @@ _WORKERS = 4
 
 
 class EntryEditedError(Exception):
-    """The week's entry was edited after it was drafter, so a new draft would lose the edits."""
+    """The week's entry was edited after it was drafted, so a new draft would lose the edits."""
 
 
 @dataclass(frozen=True)
 class DraftResult:
-    """Where the draft and its reports were written, and what was left out."""
+    """Where the draft, the entry to edit and the reports were written, and what was left out."""
 
     draft: Path
     entry: Path
@@ -51,20 +51,29 @@ def draft_week(
     progress: Progress = lambda done, total: None,
     overwrite: bool = False,
 ) -> DraftResult:
-    """Write the draft entry for `week` and the reports of what was left out of it.
+    """Write the draft entry for `week`, a copy of it to edit, and the reports of what was left out.
+
+    The copy is `entries/<week>.md` in the journal. If it has been edited since the last draft,
+    `EntryEditedError` is raised before the LLM is asked anything, unless `overwrite` is set.
 
     Threads are summarised several at a time. `progress` is called after each one with how many
     are done and how many there are. Each summary is saved in the week's folder as it is made,
     so a later run only asks the LLM about threads that are new or have changed. The entry holds
     the claims picked for the week, or all of them if picking fails, and one line per repo for
-    the week's work; the line of every thread goes to a file beside it. If a file has been edited it
-    won't be overwritten unless the `overwrite` flag is set.
+    the week's work; the line of every thread goes to a file beside it.
     """
     folder = journal / ".devlog" / week
 
     events_file = folder / "events.jsonl"
     if not events_file.exists():
         raise FileNotFoundError(f"no events for {week}: run `devlog collect --week {week}` first")
+
+    draft_file = folder / "draft.md"
+    entry_file = journal / "entries" / f"{week}.md"
+    if not overwrite and _edited(entry_file, draft_file):
+        raise EntryEditedError(
+            f"{entry_file} was edited after it was drafted: pass `--overwrite` to replace it"
+        )
 
     threads = group_events(read_events(events_file))
     llm = SavedAnswers(llm, folder / "summaries")
@@ -80,13 +89,7 @@ def draft_week(
 
     work, undigested = digest_threads(supported, llm)
 
-    draft_file = folder / "draft.md"
-    entry_file = journal / "entries" / f"{week}.md"
     text = assemble_entry(week, kept, load("entry.md"), work)
-    if not overwrite and _edited(entry_file, draft_file):
-        raise EntryEditedError(
-            f"{entry_file} was edited after it was drafted: pass `--overwrite` to replace it."
-        )
     draft_file.write_text(text, encoding="utf-8")
     entry_file.parent.mkdir(exist_ok=True)
     entry_file.write_text(text, encoding="utf-8")
@@ -124,7 +127,7 @@ def _edited(entry_file: Path, draft_file: Path) -> bool:
     # If no draft exists, it is mine
     if not draft_file.exists():
         return True
-    return entry_file.read_text(encoding="utf-8") != draft_file.read_text("utf-8")
+    return entry_file.read_text(encoding="utf-8") != draft_file.read_text(encoding="utf-8")
 
 
 def _summarise_all(

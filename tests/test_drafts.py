@@ -86,12 +86,17 @@ def test_draft_is_kept_beside_the_editable_entry(journal):
 
 
 def test_an_edited_entry_is_not_overwritten(journal):
-    write_events([opened("shortener", PR)], journal / ".devlog" / WEEK / "events.jsonl")
+    events_file = journal / ".devlog" / WEEK / "events.jsonl"
+    write_events([opened("shortener", PR)], events_file)
     entry = draft_week(WEEK, journal, [], FakeLLM(), run_command).entry
     entry.write_text("My own words.")
+    write_events([opened("shortener", PR), opened("billing", BILLING_PR)], events_file)
+
+    def complete(system, prompt, output, tools):
+        raise AssertionError("the LLM was asked before the draft was refused")
 
     with pytest.raises(EntryEditedError, match="--overwrite"):
-        draft_week(WEEK, journal, [], FakeLLM(), run_command)
+        draft_week(WEEK, journal, [], fake(complete), run_command)
 
     assert entry.read_text() == "My own words."
 
