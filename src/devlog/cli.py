@@ -10,7 +10,7 @@ from pathlib import Path
 from devlog.collectors.base import Collector, run_command
 from devlog.collectors.registry import build_collectors, collect_events
 from devlog.config import DEFAULT_CONFIG_PATH, Config, load_config
-from devlog.drafts import DraftResult, draft_week
+from devlog.drafts import DraftResult, EntryEditedError, draft_week
 from devlog.events import write_events
 from devlog.llm import LLMClient, connect_anthropic
 from devlog.week import last_complete_week, week_bounds
@@ -28,11 +28,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     commands = parser.add_subparsers(dest="command", required=True)
     helps = {"collect": "gather a week's events", "draft": "write the week's draft entry"}
-    for name, text in helps.items():
-        command = commands.add_parser(name, help=text)
+    parsers = {name: commands.add_parser(name, help=text) for name, text in helps.items()}
+    for command in parsers.values():
         command.add_argument(
             "--week", help="ISO week such as 2026-W47 (default: last complete week)"
         )
+    parsers["draft"].add_argument(
+        "--overwrite", action="store_true", help="replace an entry you have edited"
+    )
     return parser
 
 
@@ -50,7 +53,8 @@ def _collect(
 
 
 def _report_draft(week: str, result: DraftResult) -> int:
-    print(f"{week}: draft written to {result.entry}")
+    print(f"{week}: draft written to {result.draft}")
+    print(f"  entry to edit: {result.entry}")
     failed = " (selection failed)" if result.selection_failed else ""
     print(f"  claims kept: {result.kept} of {result.kept + result.left_out}{failed}")
     print(f"  claims left out: {result.unselected}")
@@ -88,8 +92,14 @@ def main(
         return _collect(week, config, build(config), start, end)
     try:
         result = draft_week(
-            week, config.journal, config.repos, connect(config.model), run_command, _show_progress
+            week,
+            config.journal,
+            config.repos,
+            connect(config.model),
+            run_command,
+            _show_progress,
+            overwrite=args.overwrite,
         )
-    except FileNotFoundError as error:
+    except (FileNotFoundError, EntryEditedError) as error:
         parser.error(str(error))
     return _report_draft(week, result)
