@@ -63,7 +63,7 @@ class NoteFilesCollector:
         self._run = run
 
     def collect(self, start: datetime, end: datetime) -> list[Event]:
-        """Return an event for each file last changed in `start <= time < end`."""
+        """Return the note-file events with `start <= time < end`."""
         files = [file for path in self._paths for file in _markdown_files(path)]
         events: list[Event] = []
         for repo in self._repos:
