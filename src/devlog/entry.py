@@ -9,7 +9,7 @@ from devlog.summarise import Claim, ClaimKind, ThreadSummary
 from devlog.threads import Thread
 from devlog.week import week_bounds
 
-_EMPTY = "Nothing this week."
+EMPTY = "Nothing this week."
 _FIELDS = {
     ClaimKind.DECISION: "decisions",
     ClaimKind.DEAD_END: "dead_ends",
@@ -93,7 +93,7 @@ def _problem(claim: Claim, links: set[str]) -> str | None:
 
 
 def _block(lines: Iterable[str]) -> str:
-    return "\n".join(lines) or _EMPTY
+    return "\n".join(lines) or EMPTY
 
 
 def _label(link: str) -> str:
