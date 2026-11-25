@@ -20,7 +20,7 @@ def build_collectors(config: Config, run: Runner = run_command) -> list[Collecto
         AgentsFileCollector(config.repos, run),
         GitHubCollector(config.github_user, run),
         InboxCollector(config.journal / INBOX_NAME),
-        NoteFilesCollector(config.notes_paths, config.repos),
+        NoteFilesCollector(config.notes_paths, config.repos, run),
     ]
 
 

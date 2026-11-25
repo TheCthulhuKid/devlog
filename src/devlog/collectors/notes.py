@@ -5,6 +5,8 @@ from collections.abc import Iterator, Sequence
 from datetime import UTC, date, datetime, time
 from pathlib import Path
 
+from devlog.collectors.base import Runner
+from devlog.collectors.git import commits, tracked_files
 from devlog.events import Event
 
 _HEADING = re.compile(r"#{1,6}\s+(?P<title>.*?)\s*")
@@ -47,23 +49,53 @@ class InboxCollector:
 
 
 class NoteFilesCollector:
-    """One event per Markdown file under the given paths, placed at the time it last changed.
+    """Events for the Markdown files under the given paths.
 
-    The body is the file's current text, cut at a fixed length. A file inside one of `repos`
-    belongs to that repo. Claude Code's memory notes are never read: they can be personal.
+    A file tracked by one of `repos` gives one event per commit of the user's that changes it,
+    with the change as body, so collecting a week again later finds the same events. Any other
+    file gives one event at the time it last changed, with its current text as body. Bodies are
+    cut at a fixed length. Claude Code's memory notes are never read: they can be personal.
     """
 
-    def __init__(self, paths: Sequence[Path], repos: Sequence[Path]) -> None:
+    def __init__(self, paths: Sequence[Path], repos: Sequence[Path], run: Runner) -> None:
         self._paths = paths
         self._repos = repos
+        self._run = run
 
     def collect(self, start: datetime, end: datetime) -> list[Event]:
         """Return an event for each file last changed in `start <= time < end`."""
         files = [file for path in self._paths for file in _markdown_files(path)]
+        events: list[Event] = []
+        for repo in self._repos:
+            tracked = tracked_files(self._run, repo)
+            mine = [file for file in files if file in tracked]
+            events += self._commit_events(repo, mine, start, end)
+            files = [file for file in files if file not in tracked]
         changes = [(file, datetime.fromtimestamp(file.stat().st_mtime, UTC)) for file in files]
-        return [self._event(file, time) for file, time in changes if start <= time < end]
+        return events + [
+            self._file_event(file, time) for file, time in changes if start <= time < end
+        ]
 
-    def _event(self, file: Path, time: datetime) -> Event:
+    def _commit_events(
+        self, repo: Path, files: Sequence[Path], start: datetime, end: datetime
+    ) -> list[Event]:
+        if not files:
+            return []
+        pathspecs = [f":(literal){file.relative_to(repo)}" for file in files]
+        return [
+            Event(
+                time=commit.time,
+                source="notes",
+                repo=repo.name,
+                title=f"Notes changed: {commit.subject}",
+                body=_cut(commit.output.strip()),
+                link=commit.link,
+                branch=commit.branch,
+            )
+            for commit in commits(self._run, repo, start, end, "--patch", "--", *pathspecs)
+        ]
+
+    def _file_event(self, file: Path, time: datetime) -> Event:
         text = file.read_text(encoding="utf-8")
         repo = next((repo.name for repo in self._repos if file.is_relative_to(repo)), None)
         return Event(
@@ -71,7 +103,7 @@ class NoteFilesCollector:
             source="notes",
             repo=repo,
             title=f"{file.name} changed",
-            body=text if len(text) <= _MAX_BODY else text[:_MAX_BODY] + _TRUNCATED,
+            body=_cut(text),
             link=str(file),
         )
 
@@ -107,3 +139,7 @@ def _dated_notes(text: str) -> list[tuple[date, list[str]]]:
         elif in_note and line.strip():
             notes[-1][1].append(line.strip())
     return notes
+
+
+def _cut(text: str) -> str:
+    return text if len(text) <= _MAX_BODY else text[:_MAX_BODY] + _TRUNCATED
