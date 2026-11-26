@@ -6,7 +6,7 @@ import pytest
 
 from devlog.collectors.base import run_command
 from devlog.digest import RepoDigest
-from devlog.drafts import EntryEditedError, draft_week
+from devlog.drafts import EntryEditedError, UnknownEvidenceError, draft_week, sample_week
 from devlog.events import Event, write_events
 from devlog.llm import LLMError, Usage
 from devlog.selection import TARGET, Selection
@@ -245,3 +245,26 @@ def test_draft_shows_a_digest_per_repo_and_keeps_every_thread_line_in_a_file(jou
     assert "- **shortener:** Rate limiting landed." in entry
     assert SUMMARY.what_changed not in entry
     assert result.threads.read_text().count(SUMMARY.what_changed) == 2
+
+
+def test_sample_summarises_only_the_threads_holding_the_evidence(journal):
+    events = [opened("shortener", PR), opened("billing", BILLING_PR)]
+    write_events(events, journal / ".devlog" / WEEK / "events.jsonl")
+    asked = []
+
+    def complete(system, prompt, output, tools=()):
+        asked.append(prompt)
+        return SUMMARY
+
+    text = sample_week(WEEK, journal, [], fake(complete), run_command, ["shortener/pull/15"])
+
+    assert len(asked) == 1
+    assert "- Chose a sliding window." in text
+    assert not (journal / ".devlog" / WEEK / "draft.md").exists()
+
+
+def test_sample_refuses_evidence_no_thread_holds(journal):
+    write_events([opened("shortener", PR)], journal / ".devlog" / WEEK / "events.jsonl")
+
+    with pytest.raises(UnknownEvidenceError, match="abc1234"):
+        sample_week(WEEK, journal, [], FakeLLM(), run_command, ["abc1234"])

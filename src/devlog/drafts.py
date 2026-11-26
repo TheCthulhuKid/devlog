@@ -24,6 +24,10 @@ class EntryEditedError(Exception):
     """The week's entry was edited after it was drafted, so a new draft would lose the edits."""
 
 
+class UnknownEvidenceError(Exception):
+    """No thread of the week holds the evidence asked for."""
+
+
 @dataclass(frozen=True)
 class DraftResult:
     """Where the draft, the entry to edit and the reports were written, and what was left out."""
@@ -64,9 +68,7 @@ def draft_week(
     """
     folder = journal / ".devlog" / week
 
-    events_file = folder / "events.jsonl"
-    if not events_file.exists():
-        raise FileNotFoundError(f"no events for {week}: run `devlog collect --week {week}` first")
+    threads = _week_threads(folder, week)
 
     draft_file = folder / "draft.md"
     entry_file = journal / "entries" / f"{week}.md"
@@ -75,7 +77,6 @@ def draft_week(
             f"{entry_file} was edited after it was drafted: pass `--overwrite` to replace it"
         )
 
-    threads = group_events(read_events(events_file))
     llm = SavedAnswers(llm, folder / "summaries")
 
     summarised, failures = _summarise_all(threads, llm, repos, run, progress)
@@ -121,6 +122,47 @@ def draft_week(
     )
 
 
+def sample_week(
+    week: str,
+    journal: Path,
+    repos: Sequence[Path],
+    llm: LLMClient,
+    run: Runner,
+    evidence: Sequence[str],
+    progress: Progress = lambda done, total: None,
+) -> str:
+    """Return what the summary prompt makes of the threads of `week` that hold `evidence`.
+
+    A thread is chosen when a link of one of its events contains one of the `evidence` texts,
+    such as a commit hash copied from a claim. Each chosen thread is shown with its line and its
+    supported claims; threads that failed and claims that were dropped are listed at the end.
+    Only saved answers are written, so the week's draft and entry stay as they are.
+
+    Raises `UnknownEvidenceError` for evidence that no thread holds.
+    """
+    folder = journal / ".devlog" / week
+    threads = _week_threads(folder, week)
+
+    unknown = [text for text in evidence if not any(_holds(thread, text) for thread in threads)]
+    if unknown:
+        raise UnknownEvidenceError(f"no thread of {week} holds: {', '.join(unknown)}")
+
+    chosen = [thread for thread in threads if any(_holds(thread, text) for text in evidence)]
+
+    llm = SavedAnswers(llm, folder / "summaries")
+    summarised, failures = _summarise_all(chosen, llm, repos, run, progress)
+    supported, dropped = drop_unsupported(summarised)
+    blocks = [
+        f"# {thread.id}\n{thread_line(thread, summary)}\n\n{list_claims(summary.claims)}".rstrip()
+        for thread, summary in supported
+    ]
+    return "\n\n".join([*blocks, *failures, *dropped])
+
+
+def _holds(thread: Thread, text: str) -> bool:
+    return any(text in event.link for event in thread.events)
+
+
 def _edited(entry_file: Path, draft_file: Path) -> bool:
     if not entry_file.exists():
         return False
@@ -159,3 +201,10 @@ def _summarise_all(
         except LLMError as error:
             failures.append(f"- {thread.id}: not summarised ({error})")
     return summarised, failures
+
+
+def _week_threads(folder: Path, week: str) -> list[Thread]:
+    events_file = folder / "events.jsonl"
+    if not events_file.exists():
+        raise FileNotFoundError(f"no events for {week}: run `devlog collect --week {week}` first")
+    return group_events(read_events(events_file))
