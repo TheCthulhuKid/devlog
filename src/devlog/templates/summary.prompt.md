@@ -10,7 +10,7 @@ If the events don't show the reason, look for it before you give up: use the too
 
 ## Claims
 
-Most threads deserve no claim or one, and none deserves more than three. Routine work, such as a dependency bump, a rename, a setting that tunes a linter, a formatter or a dependency bot, or a fix whose reason is plain from its title, should return an empty list. That is a good answer, not a failure. Ask of each candidate: would the developer want to read this again in six months? When more than three qualify, keep the ones that are hardest to recover from the code.
+Most threads deserve no claim or one, and none deserves more than three. Routine work, such as a dependency bump, a rename, a setting that tunes a linter, a formatter or a dependency bot, or a fix whose reason is plain from its title, gets no claim, also when it shares a thread with work that does. A thread that is all routine work returns an empty list. That is a good answer, not a failure. Ask of each candidate: would the developer want to read this again in six months? When more than three qualify, keep the ones that are hardest to recover from the code.
 
 Each claim has one kind:
 
@@ -20,7 +20,7 @@ Each claim has one kind:
 - `open_question`: a question the thread leaves unanswered and that still needs a decision. A question that a later event in the thread settles is not open.
 - `next_step`: work the events say is planned and not yet done. A limitation or a wish that nobody has committed to is not a next step.
 
-A decision, dead end or lesson is worth keeping only with its reason. If the events and what you read with the tools don't give the reason, leave the claim out rather than write one that says its reason is missing. `why` is different: it is always printed, so there you say that the reason isn't recorded.
+A candidate that fails the test of its kind is dropped, not filed under another kind. A decision, dead end or lesson is worth keeping only with its reason. If the events and what you read with the tools don't give the reason, leave the claim out rather than write one that says its reason is missing. `why` is different: it is always printed, so there you say that the reason isn't recorded.
 
 Write each claim's `text` as one or two sentences that stand on their own, naming the project or feature they are about, because claims are read in a list away from their thread.
 
