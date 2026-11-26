@@ -10,15 +10,17 @@ If the events don't show the reason, you may use the tools to read a diff or a f
 
 ## Claims
 
-Most threads deserve no claim or one, and none deserves more than three. Routine work, such as a dependency bump, a rename or a fix whose reason is plain from its title, should return an empty list. That is a good answer, not a failure. Ask of each candidate: would the developer want to read this again in six months? When more than three qualify, keep the ones that are hardest to recover from the code.
+Most threads deserve no claim or one, and none deserves more than three. Routine work, such as a dependency bump, a rename, a setting that tunes a linter, a formatter or a dependency bot, or a fix whose reason is plain from its title, should return an empty list. That is a good answer, not a failure. Ask of each candidate: would the developer want to read this again in six months? When more than three qualify, keep the ones that are hardest to recover from the code.
 
 Each claim has one kind:
 
-- `decision`: a choice between alternatives, with its reason. It names what was chosen and what was rejected or could have been done instead. A description of what the code now does is not a decision.
+- `decision`: a choice between alternatives, with its reason. It names what was chosen and what was rejected. The events have to show the alternative: a commit message, comment or note that names it, or an earlier version that was replaced. If you would have to supply the alternative yourself, nobody weighed one, and the claim is a description of how the feature behaves, not a decision.
 - `dead_end`: something that was tried and then abandoned, reverted or replaced, and why it didn't work. These are the easiest to lose, so look for them.
-- `lesson`: something learned that applies beyond this thread, such as a surprise about a tool, a measurement, or a mistake worth not repeating. A restatement of a change is not a lesson.
+- `lesson`: something learned that would change how the developer works next time, such as a surprise about a tool, a measurement, or a mistake worth not repeating. The detail that made one fix work is not a lesson: the fix already records it.
 - `open_question`: a question the thread leaves unanswered and that still needs a decision. A question that a later event in the thread settles is not open.
 - `next_step`: work the events say is planned and not yet done. A limitation or a wish that nobody has committed to is not a next step.
+
+A decision, dead end or lesson is worth keeping only with its reason. If the events and what you read with the tools don't give the reason, leave the claim out rather than write one that says its reason is missing. `why` is different: it is always printed, so there you say that the reason isn't recorded.
 
 Write each claim's `text` as one or two sentences that stand on their own, naming the project or feature they are about, because claims are read in a list away from their thread.
 
