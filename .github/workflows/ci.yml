@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  checks:
+  tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -18,5 +18,33 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --locked --group dev
       - run: uv run --no-sync python -m pytest
+
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.4.0
+        with:
+          python-version: "3.14"
+      - run: uv sync --locked --group dev
       - run: uv run --no-sync python -m ruff check .
       - run: uv run --no-sync python -m ruff format --check .
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.14", "3.15"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.4.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv build
+      - run: uv run --isolated --no-project --with dist/*.whl devlog --help
+      # --help reads no template, so load each one from the installed wheel.
+      - working-directory: src/devlog/templates
+        run: >-
+          uv run --isolated --no-project --with ../../../dist/*.whl
+          python -c "import sys; from devlog.templates import load; [load(name) for name in sys.argv[1:]]"
+          *.md
