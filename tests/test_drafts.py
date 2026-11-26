@@ -6,7 +6,13 @@ import pytest
 
 from devlog.collectors.base import run_command
 from devlog.digest import RepoDigest
-from devlog.drafts import EntryEditedError, UnknownEvidenceError, draft_week, sample_week
+from devlog.drafts import (
+    EntryEditedError,
+    UnknownEvidenceError,
+    draft_week,
+    pick_week,
+    sample_week,
+)
 from devlog.events import Event, write_events
 from devlog.llm import LLMError, Usage
 from devlog.selection import TARGET, Selection
@@ -282,3 +288,31 @@ def test_sample_refuses_evidence_no_thread_holds(journal):
 
     with pytest.raises(UnknownEvidenceError, match="abc1234"):
         sample_week(WEEK, journal, [], FakeLLM(), run_command, ["abc1234"])
+
+
+def test_pick_lists_the_kept_claims_and_writes_no_draft(journal):
+    write_events([opened("shortener", PR)], journal / ".devlog" / WEEK / "events.jsonl")
+
+    def complete(system, prompt, output, tools=()):
+        return Selection(keep=(1, 2)) if output is Selection else MANY
+
+    text = pick_week(WEEK, journal, [], fake(complete), run_command)
+
+    assert "- Claim 2." in text
+    assert "Claim 3." not in text
+    assert text.endswith(f"kept 2 of {TARGET + 1}: decision 2 of {TARGET + 1}")
+    assert not (journal / ".devlog" / WEEK / "draft.md").exists()
+
+
+def test_pick_again_asks_even_when_an_answer_is_saved(journal):
+    write_events([opened("shortener", PR)], journal / ".devlog" / WEEK / "events.jsonl")
+    asked = []
+
+    def complete(system, prompt, output, tools=()):
+        asked.append(output)
+        return Selection(keep=(1,)) if output is Selection else MANY
+
+    for again in (False, False, True):
+        pick_week(WEEK, journal, [], fake(complete), run_command, again=again)
+
+    assert asked == [ThreadSummary, Selection, Selection]

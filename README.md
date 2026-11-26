@@ -89,7 +89,7 @@ line. The line of every thread is in `.devlog/<week>/threads.md`. If a digest fa
 that repo's threads instead and the command exits with status 1.
 
 A week's threads claim more than anyone rereads, so when they make more than 20 claims, one more
-request asks Claude to pick about 20 for the entry. It picks by number: the claims are printed as the
+request asks Claude to pick at most 20 for the entry. It picks by number: the claims are printed as the
 thread summaries wrote them. `draft` prints how many were kept, and the rest are in
 `.devlog/<week>/unselected.md`, written as entry lines under their kind so one can be pasted back. If
 the pick fails, the draft holds every claim and the command exits with status 1.
@@ -107,6 +107,10 @@ summarises only the threads that hold them. It prints each thread's line and cla
 claims `draft` would have left out, and the tokens spent. It writes no draft and no entry. The
 summaries it makes are saved with the week's others, so a later `draft` does not pay for them again.
 Evidence that no thread holds is an error.
+
+`devlog pick --week 2026-W47` tries the selection prompt: it prints the claims the pick keeps and how
+many of each kind, and writes no draft. The threads' saved summaries are reused, so only the pick is paid for.
+With `--again` the pick is asked afresh and its answer is not saved, so the same prompt can be run several times.
 
 The model does not give the same answer twice, so one run says little about a wording. With
 `--again`, `sample` asks every chosen thread afresh instead of reusing its saved summary, and saves

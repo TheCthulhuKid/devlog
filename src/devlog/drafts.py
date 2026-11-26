@@ -1,5 +1,6 @@
 """Drafts a week's entry: its events in, a draft entry and a report of dropped claims out."""
 
+from collections import Counter
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -11,7 +12,7 @@ from devlog.entry import assemble_entry, drop_unsupported, list_claims, thread_l
 from devlog.events import read_events
 from devlog.llm import LLMClient, LLMError, SavedAnswers, Usage
 from devlog.selection import select_claims
-from devlog.summarise import ThreadSummary, summarise_thread
+from devlog.summarise import Claim, ClaimKind, ThreadSummary, summarise_thread
 from devlog.templates import load
 from devlog.threads import Thread, group_events
 
@@ -164,8 +165,46 @@ def sample_week(
     return "\n\n".join([*blocks, *failures, *dropped])
 
 
+def pick_week(
+    week: str,
+    journal: Path,
+    repos: Sequence[Path],
+    llm: LLMClient,
+    run: Runner,
+    progress: Progress = lambda done, total: None,
+    again: bool = False,
+) -> str:
+    """Return the claims the pick keeps for `week`, and how many of each kind it kept.
+
+    The threads are summarised as for a draft, so their saved summaries are reused. Nothing
+    else is written: the week's draft, entry and reports stay as they are.
+
+    With `again`, the pick is asked afresh and its answer is not saved, so the same prompt
+    can be run several times to see how much its picks vary.
+    """
+    folder = journal / ".devlog" / week
+    threads = _week_threads(folder, week)
+
+    saved = SavedAnswers(llm, folder / "summaries")
+    summarised, failures = _summarise_all(threads, saved, repos, run, progress)
+    supported, _ = drop_unsupported(summarised)
+    kept, left_out = select_claims(supported, llm if again else saved)
+
+    claims = [claim for _, summary in kept for claim in summary.claims]
+    return "\n".join([list_claims(claims), *failures, _kept_counts(claims, left_out)])
+
+
 def _holds(thread: Thread, text: str) -> bool:
     return any(text in event.link for event in thread.events)
+
+
+def _kept_counts(kept: Sequence[Claim], left_out: Sequence[Claim]) -> str:
+    kept_kinds = Counter(claim.kind for claim in kept)
+    all_kinds = kept_kinds + Counter(claim.kind for claim in left_out)
+    kinds = ", ".join(
+        f"{kind} {kept_kinds[kind]} of {all_kinds[kind]}" for kind in ClaimKind if all_kinds[kind]
+    )
+    return f"kept {len(kept)} of {len(kept) + len(left_out)}: {kinds}"
 
 
 def _edited(entry_file: Path, draft_file: Path) -> bool:
