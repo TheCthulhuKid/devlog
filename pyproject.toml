@@ -1,8 +1,10 @@
 [project]
 name = "devlog"
 version = "0.1.0"
-description = "Add your description here"
+description = "Turns a week of git history, GitHub activity and notes into an engineering journal entry, each claim linked to its evidence."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Marc", email = "gileadslostson@gmail.com" }
 ]
@@ -11,6 +13,9 @@ dependencies = [
     "anthropic>=2.13.0",
     "pydantic>=2.14.4",
 ]
+
+[project.urls]
+Repository = "https://github.com/TheCthulhuKid/devlog"
 
 [project.scripts]
 devlog = "devlog.cli:main"
