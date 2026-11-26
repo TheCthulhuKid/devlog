@@ -10,9 +10,15 @@ from pathlib import Path
 from devlog.collectors.base import Collector, run_command
 from devlog.collectors.registry import build_collectors, collect_events
 from devlog.config import DEFAULT_CONFIG_PATH, Config, load_config
-from devlog.drafts import DraftResult, EntryEditedError, draft_week
+from devlog.drafts import (
+    DraftResult,
+    EntryEditedError,
+    UnknownEvidenceError,
+    draft_week,
+    sample_week,
+)
 from devlog.events import write_events
-from devlog.llm import LLMClient, connect_anthropic
+from devlog.llm import LLMClient, Usage, connect_anthropic
 from devlog.stats import journal_stats, total
 from devlog.week import last_complete_week, week_bounds
 
@@ -31,15 +37,21 @@ def _build_parser() -> argparse.ArgumentParser:
     helps = {
         "collect": "gather a week's events",
         "draft": "write the week's draft entry",
+        "sample": "try the summary prompt on a few of the week's threads",
         "stats": "show how much of each draft you kept",
     }
     parsers = {name: commands.add_parser(name, help=text) for name, text in helps.items()}
-    for name in ("collect", "draft"):
+    for name in ("collect", "draft", "sample"):
         parsers[name].add_argument(
             "--week", help="ISO week such as 2026-W47 (default: last complete week)"
         )
     parsers["draft"].add_argument(
         "--overwrite", action="store_true", help="replace an entry you have edited"
+    )
+    parsers["sample"].add_argument(
+        "evidence",
+        nargs="+",
+        help="a commit hash or part of a link, copied from a claim",
     )
     return parser
 
@@ -68,7 +80,7 @@ def _report_draft(week: str, result: DraftResult) -> int:
     print(f"  repos not digested: {result.undigested}")
     print(f"  every thread: {result.threads}")
     usage = result.usage
-    print(f"  tokens: {usage.input:,} in ({usage.cached:,} from cache), {usage.output:,} out")
+    print(f"  {_tokens(usage)}")
     print(f"  details: {result.report}")
     return 1 if result.failed or result.selection_failed or result.undigested else 0
 
@@ -125,6 +137,28 @@ def _draft(
     return +_report_draft(week, result)
 
 
+def _sample(
+    parser: argparse.ArgumentParser,
+    week: str,
+    config: Config,
+    llm: LLMClient,
+    evidence: Sequence[str],
+) -> int:
+    try:
+        text = sample_week(
+            week, config.journal, config.repos, llm, run_command, evidence, _show_progress
+        )
+    except (FileNotFoundError, UnknownEvidenceError) as error:
+        parser.error(str(error))
+    print(text)
+    print(_tokens(llm.usage))
+    return 0
+
+
+def _tokens(usage: Usage) -> str:
+    return f"tokens: {usage.input:,} in ({usage.cached} from cache), {usage.output:,} out"
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -141,4 +175,7 @@ def main(
     week, start, end = _week(parser, args.week, today or date.today())
     if args.command == "collect":
         return _collect(week, config, build(config), start, end)
+    llm = connect(config.model)
+    if args.command == "sample":
+        return _sample(parser, week, config, llm, args.evidence)
     return _draft(parser, week, config, connect(config.model), args.overwrite)
