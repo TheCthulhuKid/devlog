@@ -263,6 +263,20 @@ def test_sample_summarises_only_the_threads_holding_the_evidence(journal):
     assert not (journal / ".devlog" / WEEK / "draft.md").exists()
 
 
+def test_sample_again_asks_even_when_an_answer_is_saved(journal):
+    write_events([opened("shortener", PR)], journal / ".devlog" / WEEK / "events.jsonl")
+    asked = []
+
+    def complete(system, prompt, output, tools=()):
+        asked.append(prompt)
+        return SUMMARY
+
+    for again in (False, False, True):
+        sample_week(WEEK, journal, [], fake(complete), run_command, ["pull/15"], again=again)
+
+    assert len(asked) == 2
+
+
 def test_sample_refuses_evidence_no_thread_holds(journal):
     write_events([opened("shortener", PR)], journal / ".devlog" / WEEK / "events.jsonl")
 

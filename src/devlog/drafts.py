@@ -130,6 +130,7 @@ def sample_week(
     run: Runner,
     evidence: Sequence[str],
     progress: Progress = lambda done, total: None,
+    again: bool = False,
 ) -> str:
     """Return what the summary prompt makes of the threads of `week` that hold `evidence`.
 
@@ -137,6 +138,9 @@ def sample_week(
     such as a commit hash copied from a claim. Each chosen thread is shown with its line and its
     supported claims; threads that failed and claims that were dropped are listed at the end.
     Only saved answers are written, so the week's draft and entry stay as they are.
+
+    With `again`, every chosen thread is asked afresh and its answer is not saved, so the same
+    prompt can be run several times to see how much its answers vary.
 
     Raises `UnknownEvidenceError` for evidence that no thread holds.
     """
@@ -149,7 +153,8 @@ def sample_week(
 
     chosen = [thread for thread in threads if any(_holds(thread, text) for text in evidence)]
 
-    llm = SavedAnswers(llm, folder / "summaries")
+    if not again:
+        llm = SavedAnswers(llm, folder / "summaries")
     summarised, failures = _summarise_all(chosen, llm, repos, run, progress)
     supported, dropped = drop_unsupported(summarised)
     blocks = [

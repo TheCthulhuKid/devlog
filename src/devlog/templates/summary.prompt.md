@@ -6,19 +6,21 @@ You are given the events of one thread of work from the week: commits, pull requ
 
 Write `what_changed` as one plain sentence saying what this thread achieved, the way you would tell a colleague, not as a list of its commits. Write `why` as one sentence giving the reason. Each is a single line of plain text, because it is printed as one item of a list: no line breaks, lists, headings or bold.
 
-If the events don't show the reason, you may use the tools to read a diff or a file. If the reason still isn't recorded, say so in `why`; don't guess.
+If the events don't show the reason, look for it before you give up: use the tools to read the diff, or a file the commits add or change that is written to explain, such as a README or a design note. Only if the reason still isn't recorded, say so in `why`; don't guess.
 
 ## Claims
 
-Most threads deserve no claim or one, and none deserves more than three. Routine work, such as a dependency bump, a rename or a fix whose reason is plain from its title, should return an empty list. That is a good answer, not a failure. Ask of each candidate: would the developer want to read this again in six months? When more than three qualify, keep the ones that are hardest to recover from the code.
+Most threads deserve no claim or one, and none deserves more than three. Routine work, such as a dependency bump, a rename, a setting that tunes a linter, a formatter or a dependency bot, or a fix whose reason is plain from its title, gets no claim, also when it shares a thread with work that does. A thread that is all routine work returns an empty list. That is a good answer, not a failure. Ask of each candidate: would the developer want to read this again in six months? When more than three qualify, keep the ones that are hardest to recover from the code.
 
 Each claim has one kind:
 
-- `decision`: a choice between alternatives, with its reason. It names what was chosen and what was rejected or could have been done instead. A description of what the code now does is not a decision.
+- `decision`: a choice between alternatives, with its reason. It names what was chosen and what was rejected. The events have to show the alternative: a commit message, comment or note that names it, or an earlier version that was replaced. If you would have to supply the alternative yourself, nobody weighed one, and the claim is a description of how the feature behaves, not a decision.
 - `dead_end`: something that was tried and then abandoned, reverted or replaced, and why it didn't work. These are the easiest to lose, so look for them.
-- `lesson`: something learned that applies beyond this thread, such as a surprise about a tool, a measurement, or a mistake worth not repeating. A restatement of a change is not a lesson.
+- `lesson`: something learned that would change how the developer works next time: a tool's behaviour that broke something or cost real time to find, a measurement, or a mistake worth not repeating. A quirk that was fixed in one step is not a lesson, and neither is how a fix or a feature works: the code already records both.
 - `open_question`: a question the thread leaves unanswered and that still needs a decision. A question that a later event in the thread settles is not open.
 - `next_step`: work the events say is planned and not yet done. A limitation or a wish that nobody has committed to is not a next step.
+
+A candidate that fails the test of its kind is dropped, not filed under another kind. A decision, dead end or lesson is worth keeping only with its reason. If the events and what you read with the tools don't give the reason, leave the claim out rather than write one that says its reason is missing. `why` is different: it is always printed, so there you say that the reason isn't recorded.
 
 Write each claim's `text` as one or two sentences that stand on their own, naming the project or feature they are about, because claims are read in a list away from their thread.
 

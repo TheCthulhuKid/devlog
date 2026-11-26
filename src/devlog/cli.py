@@ -49,6 +49,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--overwrite", action="store_true", help="replace an entry you have edited"
     )
     parsers["sample"].add_argument(
+        "--again",
+        action="store_true",
+        help="ask afresh instead of reusing saved answers, and save nothing",
+    )
+    parsers["sample"].add_argument(
         "evidence",
         nargs="+",
         help="a commit hash or part of a link, copied from a claim",
@@ -142,10 +147,11 @@ def _sample(
     config: Config,
     llm: LLMClient,
     evidence: Sequence[str],
+    again: bool,
 ) -> int:
     try:
         text = sample_week(
-            week, config.journal, config.repos, llm, run_command, evidence, _show_progress
+            week, config.journal, config.repos, llm, run_command, evidence, _show_progress, again
         )
     except (FileNotFoundError, UnknownEvidenceError) as error:
         parser.error(str(error))
@@ -176,5 +182,5 @@ def main(
         return _collect(week, config, build(config), start, end)
     llm = connect(config.model)
     if args.command == "sample":
-        return _sample(parser, week, config, llm, args.evidence)
+        return _sample(parser, week, config, llm, args.evidence, args.again)
     return _draft(parser, week, config, llm, args.overwrite)
