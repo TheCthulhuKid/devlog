@@ -79,8 +79,7 @@ def _report_draft(week: str, result: DraftResult) -> int:
     print(f"  threads not summarised: {result.failed}")
     print(f"  repos not digested: {result.undigested}")
     print(f"  every thread: {result.threads}")
-    usage = result.usage
-    print(f"  {_tokens(usage)}")
+    print(f"  {_tokens(result.usage)}")
     print(f"  details: {result.report}")
     return 1 if result.failed or result.selection_failed or result.undigested else 0
 
@@ -134,7 +133,7 @@ def _draft(
         )
     except (FileNotFoundError, EntryEditedError) as error:
         parser.error(str(error))
-    return +_report_draft(week, result)
+    return _report_draft(week, result)
 
 
 def _sample(
@@ -156,7 +155,7 @@ def _sample(
 
 
 def _tokens(usage: Usage) -> str:
-    return f"tokens: {usage.input:,} in ({usage.cached} from cache), {usage.output:,} out"
+    return f"tokens: {usage.input:,} in ({usage.cached:,} from cache), {usage.output:,} out"
 
 
 def main(
@@ -178,4 +177,4 @@ def main(
     llm = connect(config.model)
     if args.command == "sample":
         return _sample(parser, week, config, llm, args.evidence)
-    return _draft(parser, week, config, connect(config.model), args.overwrite)
+    return _draft(parser, week, config, llm, args.overwrite)

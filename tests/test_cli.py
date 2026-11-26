@@ -37,7 +37,7 @@ def week_folder(tmp_path):
 
 
 def run(config_file, complete, command: str, *options: str) -> int:
-    llm = SimpleNamespace(complete=complete, model="fake", usage=Usage(1200, 0, 340))
+    llm = SimpleNamespace(complete=complete, model="fake", usage=Usage(1200, 1000, 340))
     arguments = ["--config", str(config_file), command, "--week", "2026-W47", *options]
     return main(arguments, connect=lambda model: llm)
 
@@ -86,7 +86,7 @@ def test_draft_prints_where_the_entry_is_and_what_was_dropped(
         "  threads not summarised: 0",
         "  repos not digested: 0",
         f"  every thread: {week_folder / 'threads.md'}",
-        "  tokens: 1,200 in (0 from cache), 340 out",
+        "  tokens: 1,200 in (1,000 from cache), 340 out",
         f"  details: {week_folder / 'dropped.md'}",
     ]
 
@@ -124,7 +124,7 @@ def test_sample_prints_the_claims_of_the_chosen_threads(config_file, week_folder
     lines = capsys.readouterr().out.splitlines()
     assert status == 0
     assert lines[:2] == ["# thread-1", "- **notes:** Added a cache. Slow redirects."]
-    assert lines[-1] == "tokens: 1,200 in (0 from cache), 340 out"
+    assert lines[-1] == "tokens: 1,200 in (1,000 from cache), 340 out"
 
 
 def test_stats_prints_each_weeks_edit_rate(config_file, tmp_path, capsys):

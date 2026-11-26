@@ -52,6 +52,7 @@ after a bullet belong to it. A bullet with no date heading above it is an error,
 devlog collect                  # the last complete week (Monday to Sunday)
 devlog collect --week 2026-W47  # a given ISO week
 devlog draft --week 2026-W47    # write that week's draft entry from its collected events
+devlog sample --week 2026-W47 57bfef1 pull/15  # summarise only the threads holding this evidence
 devlog stats                    # how much of each week's draft you kept
 ```
 
@@ -98,6 +99,13 @@ code style instead. A statement is left out when it cites no evidence, or eviden
 thread. `draft` prints how many were dropped and lists them in `.devlog/<week>/dropped.md`. All
 three files are rewritten on every run. A thread the model could not summarise is skipped and listed there too, and the
 command then exits with status 1.
+
+`sample` is for trying a change to the summary prompt without paying for the whole week. Give it one
+or more pieces of evidence copied from claims, such as a commit hash or part of a link, and it
+summarises only the threads that hold them. It prints each thread's line and claims, the threads and
+claims `draft` would have left out, and the tokens spent. It writes no draft and no entry. The
+summaries it makes are saved with the week's others, so a later `draft` does not pay for them again.
+Evidence that no thread holds is an error.
 
 `stats` compares every week's `draft.md` with its entry and prints one row per week, oldest first:
 
