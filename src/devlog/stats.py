@@ -6,9 +6,7 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from devlog.entry import EMPTY
-
-_HEADING = "## "
+from devlog.entry import sections
 
 
 @dataclass(frozen=True)
@@ -43,7 +41,7 @@ class WeekEdits:
 
 def compare_entries(draft: str, final: str) -> list[SectionEdits]:
     """Return, for each section of `draft` or `final`, how many draft lines were kept and added."""
-    before, after = _sections(draft), _sections(final)
+    before, after = sections(draft), sections(final)
     edits = []
 
     for section in before | after:
@@ -96,15 +94,3 @@ def _row(week: WeekEdits) -> dict:
 
 def _numbers(edits: SectionEdits) -> dict:
     return {**asdict(edits), "removed": edits.removed, "edit_rate": edits.edit_rate}
-
-
-def _sections(text: str) -> dict[str, list[str]]:
-    sections: dict[str, list[str]] = {}
-    current = None
-    for line in text.splitlines():
-        line = line.strip()
-        if line.startswith(_HEADING):
-            current = sections.setdefault(line.removeprefix(_HEADING), [])
-        elif line and line != EMPTY and current is not None:
-            current.append(line)
-    return sections

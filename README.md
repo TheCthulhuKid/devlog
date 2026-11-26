@@ -54,7 +54,10 @@ devlog collect --week 2026-W47  # a given ISO week
 devlog draft --week 2026-W47    # write that week's draft entry from its collected events
 devlog sample --week 2026-W47 57bfef1 pull/15  # summarise only the threads holding this evidence
 devlog sample --week 2026-W47 --again 57bfef1  # ask afresh, to see how much the answers vary
+devlog pick --week 2026-W47     # try the selection prompt on that week's claims
+devlog pick --week 2026-W47 --again  # ask the pick afresh, to see how much it varies
 devlog stats                    # how much of each week's draft you kept
+devlog evaluate --week 2026-W45 # check a draft's commits and score it against your gold entry
 ```
 
 `collect` reads your commits, your GitHub pull requests, issues, reviews and comments (through the `gh`
@@ -108,9 +111,10 @@ claims `draft` would have left out, and the tokens spent. It writes no draft and
 summaries it makes are saved with the week's others, so a later `draft` does not pay for them again.
 Evidence that no thread holds is an error.
 
-`devlog pick --week 2026-W47` tries the selection prompt: it prints the claims the pick keeps and how
-many of each kind, and writes no draft. The threads' saved summaries are reused, so only the pick is paid for.
-With `--again` the pick is asked afresh and its answer is not saved, so the same prompt can be run several times.
+`devlog pick --week 2026-W47` tries the selection prompt: it prints the claims the pick keeps and
+how many of each kind, and writes no draft. The threads' saved summaries are reused, so only the
+pick is paid for. With `--again` the pick is asked afresh and its answer is not saved, so the same
+prompt can be run several times.
 
 The model does not give the same answer twice, so one run says little about a wording. With
 `--again`, `sample` asks every chosen thread afresh instead of reusing its saved summary, and saves
@@ -122,6 +126,14 @@ nothing: run it two or three times and compare what is printed. Each run is paid
 week       drafted  kept  removed  added  edit rate
 2026-W47        24    21        3      2        12%
 ```
+
+`devlog evaluate --week 2026-W45` compares a week's draft with the entry you wrote for it by hand in
+`gold/<week>.md`. It looks up every commit the draft cites in your repos and reports the ones that
+are missing or not pushed, and exits with status 1 if one is missing. It also writes
+`.devlog/<week>/scores.md`: each gold decision with the drafted decisions that cite one of its
+commits, then the drafted decisions that cite none. Write `matched` or `missed` in the brackets of a
+gold decision, and `wrong` or `extra` for a drafted one, and run the command again to see the
+counts. The sheet is never replaced; delete it to start again.
 
 The edit rate is the share of the draft's lines that are not in the entry: 1 - kept / drafted. Only
 non-blank lines under a `## ` heading count, and a line is kept when the same section of the entry

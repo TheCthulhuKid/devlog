@@ -18,6 +18,7 @@ from devlog.drafts import (
     pick_week,
     sample_week,
 )
+from devlog.evaluate import MARKS, UNMARKED, Evaluation, LinkStatus, evaluate_week
 from devlog.events import write_events
 from devlog.llm import LLMClient, LLMError, Usage, connect_anthropic
 from devlog.stats import journal_stats, total
@@ -38,12 +39,13 @@ def _build_parser() -> argparse.ArgumentParser:
     helps = {
         "collect": "gather a week's events",
         "draft": "write the week's draft entry",
+        "evaluate": "check a draft's commits and score it against the gold entry",
         "pick": "try the selection prompt on the week's claims",
         "sample": "try the summary prompt on a few of the week's threads",
         "stats": "show how much of each draft you kept",
     }
     parsers = {name: commands.add_parser(name, help=text) for name, text in helps.items()}
-    for name in ("collect", "draft", "pick", "sample"):
+    for name in ("collect", "draft", "evaluate", "pick", "sample"):
         parsers[name].add_argument(
             "--week", help="ISO week such as 2026-W47 (default: last complete week)"
         )
@@ -181,6 +183,27 @@ def _pick(
     return 0
 
 
+def _evaluate(parser: argparse.ArgumentParser, week: str, config: Config) -> int:
+    try:
+        result = evaluate_week(week, config.journal, config.repos, run_command)
+    except (FileNotFoundError, ValueError) as error:
+        parser.error(str(error))
+    return _report_evaluation(week, result)
+
+
+def _report_evaluation(week: str, result: Evaluation) -> int:
+    statuses = Counter(link.status for link in result.links)
+    found = ", ".join(f"{statuses[status]} {status}" for status in LinkStatus)
+    print(f"{week}: commits cited: {found}")
+    for link in result.links:
+        if link.status != LinkStatus.OK:
+            print(f"  {link.label}: {link.status}")
+    print(f"  score sheet: {result.sheet}")
+    marks = ", ".join(f"{mark} {result.marks[mark]}" for mark in (*MARKS, UNMARKED))
+    print(f"  {marks}")
+    return 1 if statuses[LinkStatus.BROKEN] else 0
+
+
 def _tokens(usage: Usage) -> str:
     return f"tokens: {usage.input:,} in ({usage.cached:,} from cache), {usage.output:,} out"
 
@@ -201,6 +224,8 @@ def main(
     week, start, end = _week(parser, args.week, today or date.today())
     if args.command == "collect":
         return _collect(week, config, build(config), start, end)
+    if args.command == "evaluate":
+        return _evaluate(parser, week, config)
     llm = connect(config.model)
     if args.command == "sample":
         return _sample(parser, week, config, llm, args.evidence, args.again)

@@ -10,6 +10,7 @@ from devlog.threads import Thread
 from devlog.week import week_bounds
 
 EMPTY = "Nothing this week."
+_HEADING = "## "
 _FIELDS = {
     ClaimKind.DECISION: "decisions",
     ClaimKind.DEAD_END: "dead_ends",
@@ -81,6 +82,19 @@ def list_claims(claims: Sequence[Claim]) -> str:
         if lines:
             blocks.append("".join(f"{line}\n" for line in [f"## {kind}", *lines]))
     return "\n".join(blocks)
+
+
+def sections(text: str) -> dict[str, list[str]]:
+    """Return the lines of each `## ` section of an entry, without blank lines or `EMPTY`."""
+    found: dict[str, list[str]] = {}
+    current = None
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith(_HEADING):
+            current = found.setdefault(line.removeprefix(_HEADING), [])
+        elif line and line != EMPTY and current is not None:
+            current.append(line)
+    return found
 
 
 def _problem(claim: Claim, links: set[str]) -> str | None:
