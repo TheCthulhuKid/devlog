@@ -1,7 +1,8 @@
+import pytest
 from gitrepo import commit, git
 
 from devlog.collectors.base import run_command
-from devlog.evaluate import LinkStatus, check_links, score_sheet
+from devlog.evaluate import LinkStatus, check_links, count_marks, score_sheet
 
 
 def head(repo) -> str:
@@ -51,3 +52,23 @@ def test_score_sheet_lists_gold_decisions_with_no_match():
     assert sheet.endswith(
         "## Generated decisions not in gold\n\n- [ ] Kept counts in memory. (`9999999`)\n"
     )
+
+
+def test_marks_on_a_sheet_are_counted():
+    sheet = (
+        "## Gold decisions\n\n"
+        "- [matched] Use a sliding window (abc1234)\n"
+        "  - [ ] Chose a sliding window.\n"
+        "  - [wrong] Chose Redis.\n"
+        "- [ ] Drop Redis (def5678)\n"
+        "  - no match\n\n"
+        "## Generated decisions not in gold\n\n"
+        "- [extra] Kept counts in memory.\n"
+    )
+
+    assert count_marks(sheet) == {"matched": 1, "wrong": 1, "unmarked": 1, "extra": 1}
+
+
+def test_a_misspelt_mark_is_refused():
+    with pytest.raises(ValueError, match="mised"):
+        count_marks("- [mised] Drop Redis (def5678)\n")

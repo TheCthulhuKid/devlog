@@ -2,6 +2,7 @@
 
 import re
 import subprocess
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
@@ -10,6 +11,9 @@ from pathlib import Path
 from devlog.collectors.base import Runner
 from devlog.entry import sections
 
+MARKS = ("matched", "missed", "wrong", "extra")
+UNMARKED = "unmarked"
+_TO_MARK = re.compile(r"^( *)- \[ *(\w*) *\]", re.MULTILINE)
 _GITHUB_COMMIT = re.compile(r"\(https://github\.com/[^/\s]+/([^/\s]+)/commit/([0-9a-f]{7,40})\)")
 _LOCAL_COMMIT = re.compile(r"`([0-9a-f]{7})`(?=[,)])")
 _DECISIONS = "Decisions"
@@ -70,6 +74,21 @@ def score_sheet(gold: str, generated: str) -> str:
         lines += [f"  {_to_mark(line)}" for line in matches] or ["  - no match"]
     rest = [_to_mark(line) for line in drafted if line not in paired]
     return "\n".join([*lines, "", "## Generated decisions not in gold", "", *rest]) + "\n"
+
+
+def count_marks(sheet: str) -> Counter[str]:
+    """Return how often each mark is on `sheet`, and how many decisions are still `UNMARKED`.
+
+    An indented decision left empty is the match of the gold decision above it, so it is not
+    counted. A mark that is not one of `MARKS` raises `ValueError`.
+    """
+    counts: Counter[str] = Counter()
+    for indent, mark in _TO_MARK.findall(sheet):
+        if mark and mark not in MARKS:
+            raise ValueError(f"unknown mark `{mark}`: write one of {', '.join(MARKS)}")
+        if mark or not indent:
+            counts[mark or UNMARKED] += 1
+    return counts
 
 
 def _to_mark(line: str) -> str:
