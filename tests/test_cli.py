@@ -127,6 +127,20 @@ def test_sample_prints_the_claims_of_the_chosen_threads(config_file, week_folder
     assert lines[-1] == "tokens: 1,200 in (1,000 from cache), 340 out"
 
 
+def test_pick_prints_the_kept_claims(config_file, week_folder, capsys):
+    backed = SUMMARY.model_copy(update={"claims": (GUESS.model_copy(update={"evidence": ("x",)}),)})
+
+    status = run(config_file, lambda system, prompt, output, tools: backed, "pick", "--again")
+
+    lines = capsys.readouterr().out.splitlines()
+    assert status == 0
+    assert lines[1] == "- Redis would be faster. (`x`)"
+    assert lines[-2:] == [
+        "kept 1 of 1: lesson 1 of 1",
+        "tokens: 1,200 in (1,000 from cache), 340 out",
+    ]
+
+
 def test_stats_prints_each_weeks_edit_rate(config_file, tmp_path, capsys):
     (tmp_path / ".devlog" / "2026-W47").mkdir(parents=True)
     draft_file = tmp_path / ".devlog" / "2026-W47" / "draft.md"

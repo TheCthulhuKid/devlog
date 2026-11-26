@@ -15,10 +15,11 @@ from devlog.drafts import (
     EntryEditedError,
     UnknownEvidenceError,
     draft_week,
+    pick_week,
     sample_week,
 )
 from devlog.events import write_events
-from devlog.llm import LLMClient, Usage, connect_anthropic
+from devlog.llm import LLMClient, LLMError, Usage, connect_anthropic
 from devlog.stats import journal_stats, total
 from devlog.week import last_complete_week, week_bounds
 
@@ -37,16 +38,22 @@ def _build_parser() -> argparse.ArgumentParser:
     helps = {
         "collect": "gather a week's events",
         "draft": "write the week's draft entry",
+        "pick": "try the selection prompt on the week's claims",
         "sample": "try the summary prompt on a few of the week's threads",
         "stats": "show how much of each draft you kept",
     }
     parsers = {name: commands.add_parser(name, help=text) for name, text in helps.items()}
-    for name in ("collect", "draft", "sample"):
+    for name in ("collect", "draft", "pick", "sample"):
         parsers[name].add_argument(
             "--week", help="ISO week such as 2026-W47 (default: last complete week)"
         )
     parsers["draft"].add_argument(
         "--overwrite", action="store_true", help="replace an entry you have edited"
+    )
+    parsers["pick"].add_argument(
+        "--again",
+        action="store_true",
+        help="ask the pick afresh instead of reusing its saved answer, and don't save it",
     )
     parsers["sample"].add_argument(
         "--again",
@@ -160,6 +167,20 @@ def _sample(
     return 0
 
 
+def _pick(
+    parser: argparse.ArgumentParser, week: str, config: Config, llm: LLMClient, again: bool
+) -> int:
+    try:
+        text = pick_week(
+            week, config.journal, config.repos, llm, run_command, _show_progress, again
+        )
+    except (FileNotFoundError, LLMError) as error:
+        parser.error(str(error))
+    print(text)
+    print(_tokens(llm.usage))
+    return 0
+
+
 def _tokens(usage: Usage) -> str:
     return f"tokens: {usage.input:,} in ({usage.cached:,} from cache), {usage.output:,} out"
 
@@ -183,4 +204,6 @@ def main(
     llm = connect(config.model)
     if args.command == "sample":
         return _sample(parser, week, config, llm, args.evidence, args.again)
+    if args.command == "pick":
+        return _pick(parser, week, config, llm, args.again)
     return _draft(parser, week, config, llm, args.overwrite)
