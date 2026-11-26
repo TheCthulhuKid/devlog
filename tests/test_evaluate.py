@@ -40,6 +40,16 @@ def test_a_commit_no_remote_holds_is_reported_not_pushed(repo):
     assert statuses == [LinkStatus.OK, LinkStatus.NOT_PUSHED]
 
 
+def test_a_link_is_found_in_a_folder_named_differently_from_its_repo(repo):
+    commit(repo, "Add rate limit", "limit.py")
+    git(repo, "update-ref", "refs/remotes/origin/main", head(repo))
+    link = f"https://github.com/octocat/another-name/commit/{head(repo)}"
+
+    [checked] = check_links(f"- Chose a sliding window. ([abc]({link}))", [repo], run_command)
+
+    assert checked.status == LinkStatus.OK
+
+
 def test_score_sheet_lists_gold_decisions_with_no_match():
     gold = (
         "## Decisions\n\n- Use a sliding window (abc1234, then 1234abc)\n- Drop Redis (def5678)\n"
