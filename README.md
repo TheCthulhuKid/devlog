@@ -53,6 +53,7 @@ devlog collect                  # the last complete week (Monday to Sunday)
 devlog collect --week 2026-W47  # a given ISO week
 devlog draft --week 2026-W47    # write that week's draft entry from its collected events
 devlog sample --week 2026-W47 57bfef1 pull/15  # summarise only the threads holding this evidence
+devlog sample --week 2026-W47 --again 57bfef1  # ask afresh, to see how much the answers vary
 devlog stats                    # how much of each week's draft you kept
 ```
 
@@ -106,6 +107,10 @@ summarises only the threads that hold them. It prints each thread's line and cla
 claims `draft` would have left out, and the tokens spent. It writes no draft and no entry. The
 summaries it makes are saved with the week's others, so a later `draft` does not pay for them again.
 Evidence that no thread holds is an error.
+
+The model does not give the same answer twice, so one run says little about a wording. With
+`--again`, `sample` asks every chosen thread afresh instead of reusing its saved summary, and saves
+nothing: run it two or three times and compare what is printed. Each run is paid for in full.
 
 `stats` compares every week's `draft.md` with its entry and prints one row per week, oldest first:
 
