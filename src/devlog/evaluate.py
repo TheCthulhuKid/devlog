@@ -14,7 +14,7 @@ from devlog.entry import sections
 MARKS = ("matched", "missed", "wrong", "extra")
 UNMARKED = "unmarked"
 _TO_MARK = re.compile(r"^( *)- \[ *(\w*) *\]", re.MULTILINE)
-_GITHUB_COMMIT = re.compile(r"\(https://github\.com/[^/\s]+/([^/\s]+)/commit/([0-9a-f]{7,40})\)")
+_GITHUB_COMMIT = re.compile(r"\(https://github\.com/[^/\s]+/[^/\s]+/commit/([0-9a-f]{7,40})\)")
 _LOCAL_COMMIT = re.compile(r"`([0-9a-f]{7})`(?=[,)])")
 _DECISIONS = "Decisions"
 _HOW_TO_MARK = (
@@ -54,16 +54,12 @@ class Evaluation:
 def check_links(entry: str, repos: Sequence[Path], run: Runner) -> list[CheckedLink]:
     """Return every commit `entry` cites, in the order cited, with whether `repos` hold it.
 
-    A GitHub link is looked up in the repo of that name. A commit cited by its hash alone has
-    no link, so every repo is searched. A commit no remote branch holds is `NOT_PUSHED`: its
-    GitHub link is dead, or it never had one.
+    Every repo is searched for each commit, linked or not: a repo's folder need not have the
+    name its GitHub link carries. A commit no remote branch holds is `NOT_PUSHED`: its GitHub
+    link is dead, or it never had one.
     """
-    cited: dict[str, list[Path]] = {}
-    for name, sha in _GITHUB_COMMIT.findall(entry):
-        cited.setdefault(sha, [repo for repo in repos if repo.name == name])
-    for sha in _LOCAL_COMMIT.findall(entry):
-        cited.setdefault(sha, list(repos))
-    return [CheckedLink(sha[:7], _status(sha, among, run)) for sha, among in cited.items()]
+    cited = dict.fromkeys(_GITHUB_COMMIT.findall(entry) + _LOCAL_COMMIT.findall(entry))
+    return [CheckedLink(sha[:7], _status(sha, repos, run)) for sha in cited]
 
 
 def score_sheet(gold: str, generated: str) -> str:
@@ -135,7 +131,7 @@ def _gold_commits(line: str) -> set[str]:
 
 
 def _cited_commits(line: str) -> set[str]:
-    github = {sha[:7] for _, sha in _GITHUB_COMMIT.findall(line)}
+    github = {sha[:7] for sha in _GITHUB_COMMIT.findall(line)}
     return github | set(_LOCAL_COMMIT.findall(line))
 
 
