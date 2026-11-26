@@ -8,9 +8,18 @@ from enum import StrEnum
 from pathlib import Path
 
 from devlog.collectors.base import Runner
+from devlog.entry import sections
 
 _GITHUB_COMMIT = re.compile(r"\(https://github\.com/[^/\s]+/([^/\s]+)/commit/([0-9a-f]{7,40})\)")
 _LOCAL_COMMIT = re.compile(r"`([0-9a-f]{7})`(?=[,)])")
+_DECISIONS = "Decisions"
+_HOW_TO_MARK = (
+    "Write a mark in each `[ ]`. A gold decision is `matched` or `missed`. A generated decision\n"
+    "is `wrong` or `extra` (true, but not in gold); leave it empty when it is the match of the\n"
+    "gold decision above it."
+)
+_TRAILING_BRACKETS = re.compile(r"\(([^()]*)\)$")
+_SHORT_HASH = re.compile(r"\b[0-9a-f]{7}\b")
 
 
 class LinkStatus(StrEnum):
@@ -42,6 +51,39 @@ def check_links(entry: str, repos: Sequence[Path], run: Runner) -> list[CheckedL
     for sha in _LOCAL_COMMIT.findall(entry):
         cited.setdefault(sha, list(repos))
     return [CheckedLink(sha[:7], _status(sha, among, run)) for sha, among in cited.items()]
+
+
+def score_sheet(gold: str, generated: str) -> str:
+    """Return a sheet to mark: each decision of `gold` with the `generated` ones sharing a commit.
+
+    A generated decision is listed under every gold decision it shares a commit with. Those
+    that share none follow in a section of their own.
+    """
+    drafted = sections(generated).get(_DECISIONS, [])
+    paired: set[str] = set()
+    lines = [_HOW_TO_MARK, "", "## Gold decisions", ""]
+    for decision in sections(gold).get(_DECISIONS, []):
+        commits = _gold_commits(decision)
+        matches = [line for line in drafted if commits & _cited_commits(line)]
+        paired.update(matches)
+        lines.append(_to_mark(decision))
+        lines += [f"  {_to_mark(line)}" for line in matches] or ["  - no match"]
+    rest = [_to_mark(line) for line in drafted if line not in paired]
+    return "\n".join([*lines, "", "## Generated decisions not in gold", "", *rest]) + "\n"
+
+
+def _to_mark(line: str) -> str:
+    return f"- [ ] {line.removeprefix('- ')}"
+
+
+def _gold_commits(line: str) -> set[str]:
+    brackets = _TRAILING_BRACKETS.search(line)
+    return set(_SHORT_HASH.findall(brackets[1])) if brackets else set()
+
+
+def _cited_commits(line: str) -> set[str]:
+    github = {sha[:7] for _, sha in _GITHUB_COMMIT.findall(line)}
+    return github | set(_LOCAL_COMMIT.findall(line))
 
 
 def _status(sha: str, repos: Sequence[Path], run: Runner) -> LinkStatus:

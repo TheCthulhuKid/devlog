@@ -1,7 +1,7 @@
 from gitrepo import commit, git
 
 from devlog.collectors.base import run_command
-from devlog.evaluate import LinkStatus, check_links
+from devlog.evaluate import LinkStatus, check_links, score_sheet
 
 
 def head(repo) -> str:
@@ -31,3 +31,23 @@ def test_a_commit_no_remote_holds_is_reported_not_pushed(repo):
     statuses = [link.status for link in check_links(entry, [repo], run_command)]
 
     assert statuses == [LinkStatus.OK, LinkStatus.NOT_PUSHED]
+
+
+def test_score_sheet_lists_gold_decisions_with_no_match():
+    gold = (
+        "## Decisions\n\n- Use a sliding window (abc1234, then 1234abc)\n- Drop Redis (def5678)\n"
+    )
+    chosen = "- Chose a sliding window. ([abc1234](https://github.com/octocat/api/commit/abc1234f))"
+    generated = f"## Decisions\n\n{chosen}\n- Kept counts in memory. (`9999999`)\n"
+
+    sheet = score_sheet(gold, generated)
+
+    assert (
+        "- [ ] Use a sliding window (abc1234, then 1234abc)\n"
+        f"  - [ ] {chosen.removeprefix('- ')}\n"
+        "- [ ] Drop Redis (def5678)\n"
+        "  - no match\n"
+    ) in sheet
+    assert sheet.endswith(
+        "## Generated decisions not in gold\n\n- [ ] Kept counts in memory. (`9999999`)\n"
+    )
