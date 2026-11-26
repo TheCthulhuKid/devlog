@@ -42,6 +42,15 @@ class CheckedLink:
     status: LinkStatus
 
 
+@dataclass(frozen=True)
+class Evaluation:
+    """What `evaluate_week` found: the cited commits, the score sheet and the marks on it."""
+
+    links: list[CheckedLink]
+    sheet: Path
+    marks: Counter[str]
+
+
 def check_links(entry: str, repos: Sequence[Path], run: Runner) -> list[CheckedLink]:
     """Return every commit `entry` cites, in the order cited, with whether `repos` hold it.
 
@@ -89,6 +98,31 @@ def count_marks(sheet: str) -> Counter[str]:
         if mark or not indent:
             counts[mark or UNMARKED] += 1
     return counts
+
+
+def evaluate_week(week: str, journal: Path, repos: Sequence[Path], run: Runner) -> Evaluation:
+    """Check the commits the draft of `week` cites, and count the marks on its score sheet.
+
+    The sheet is `.devlog/<week>/scores.md`. It is written from the gold entry and the draft
+    when it does not exist, and never replaced, so marks are kept: delete it to start again.
+
+    Raises `FileNotFoundError` when the week has no draft or no gold entry.
+    """
+    folder = journal / ".devlog" / week
+    draft = _read(folder / "draft.md", f"run `devlog draft --week {week}` first")
+    gold = _read(journal / "gold" / f"{week}.md", "write the gold entry first")
+
+    sheet_file = folder / "scores.md"
+    if not sheet_file.exists():
+        sheet_file.write_text(score_sheet(gold, draft), encoding="utf-8")
+    marks = count_marks(sheet_file.read_text(encoding="utf-8"))
+    return Evaluation(check_links(draft, repos, run), sheet_file, marks)
+
+
+def _read(file: Path, hint: str) -> str:
+    if not file.exists():
+        raise FileNotFoundError(f"{file} does not exist: {hint}")
+    return file.read_text(encoding="utf-8")
 
 
 def _to_mark(line: str) -> str:

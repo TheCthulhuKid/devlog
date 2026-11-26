@@ -2,7 +2,13 @@ import pytest
 from gitrepo import commit, git
 
 from devlog.collectors.base import run_command
-from devlog.evaluate import LinkStatus, check_links, count_marks, score_sheet
+from devlog.evaluate import (
+    LinkStatus,
+    check_links,
+    count_marks,
+    evaluate_week,
+    score_sheet,
+)
 
 
 def head(repo) -> str:
@@ -72,3 +78,17 @@ def test_marks_on_a_sheet_are_counted():
 def test_a_misspelt_mark_is_refused():
     with pytest.raises(ValueError, match="mised"):
         count_marks("- [mised] Drop Redis (def5678)\n")
+
+
+def test_a_marked_sheet_is_not_replaced(tmp_path):
+    week = tmp_path / ".devlog" / "2026-W45"
+    week.mkdir(parents=True)
+    (week / "draft.md").write_text("## Decisions\n\n- Chose a sliding window.\n")
+    (tmp_path / "gold").mkdir()
+    (tmp_path / "gold" / "2026-W45.md").write_text("## Decisions\n\n- Drop Redis (def5678)\n")
+
+    sheet = evaluate_week("2026-W45", tmp_path, [], run_command).sheet
+    sheet.write_text(sheet.read_text().replace("- [ ] Drop", "- [missed] Drop"))
+    marks = evaluate_week("2026-W45", tmp_path, [], run_command).marks
+
+    assert marks == {"missed": 1, "unmarked": 1}

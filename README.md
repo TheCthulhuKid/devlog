@@ -123,6 +123,8 @@ week       drafted  kept  removed  added  edit rate
 2026-W47        24    21        3      2        12%
 ```
 
+`devlog evaluate --week 2026-W45` compares a week's draft with the entry you wrote for it by hand in gold/<week>.md. It looks up every commit the draft cites in your repos and reports the ones that are missing or not pushed, and exits with status 1 if one is missing. It also writes .devlog/<week>/scores.md: each gold decision with the drafted decisions that cite one of its commits, then the drafted decisions that cite none. Write matched or missed in the brackets of a gold decision, and wrong or extra for a drafted one, and run the command again to see the counts. The sheet is never replaced; delete it to start again.
+
 The edit rate is the share of the draft's lines that are not in the entry: 1 - kept / drafted. Only
 non-blank lines under a `## ` heading count, and a line is kept when the same section of the entry
 holds it unchanged, so a reworded line counts as one removed and one added. Lines you add do not

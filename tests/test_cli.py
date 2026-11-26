@@ -141,6 +141,22 @@ def test_pick_prints_the_kept_claims(config_file, week_folder, capsys):
     ]
 
 
+def test_evaluate_prints_the_links_and_the_counts(config_file, week_folder, tmp_path, capsys):
+    (week_folder / "draft.md").write_text("## Decisions\n\n- Chose a sliding window. (`abc1234`)\n")
+    (tmp_path / "gold").mkdir()
+    (tmp_path / "gold" / "2026-W47.md").write_text("## Decisions\n\n- Drop Redis (def5678)\n")
+
+    status = main(["--config", str(config_file), "evaluate", "--week", "2026-W47"])
+
+    lines = capsys.readouterr().out.splitlines()
+    assert status == 1
+    assert lines[:2] == [
+        "2026-W47: commits cited: 0 ok, 0 not pushed, 1 broken",
+        "  abc1234: broken",
+    ]
+    assert lines[-1] == "  matched 0, missed 0, wrong 0, extra 0, unmarked 2"
+
+
 def test_stats_prints_each_weeks_edit_rate(config_file, tmp_path, capsys):
     (tmp_path / ".devlog" / "2026-W47").mkdir(parents=True)
     draft_file = tmp_path / ".devlog" / "2026-W47" / "draft.md"
