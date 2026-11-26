@@ -6,7 +6,7 @@ You are given the events of one thread of work from the week: commits, pull requ
 
 Write `what_changed` as one plain sentence saying what this thread achieved, the way you would tell a colleague, not as a list of its commits. Write `why` as one sentence giving the reason. Each is a single line of plain text, because it is printed as one item of a list: no line breaks, lists, headings or bold.
 
-If the events don't show the reason, you may use the tools to read a diff or a file. If the reason still isn't recorded, say so in `why`; don't guess.
+If the events don't show the reason, look for it before you give up: use the tools to read the diff, or a file the commits add or change that is written to explain, such as a README or a design note. Only if the reason still isn't recorded, say so in `why`; don't guess.
 
 ## Claims
 
@@ -16,7 +16,7 @@ Each claim has one kind:
 
 - `decision`: a choice between alternatives, with its reason. It names what was chosen and what was rejected. The events have to show the alternative: a commit message, comment or note that names it, or an earlier version that was replaced. If you would have to supply the alternative yourself, nobody weighed one, and the claim is a description of how the feature behaves, not a decision.
 - `dead_end`: something that was tried and then abandoned, reverted or replaced, and why it didn't work. These are the easiest to lose, so look for them.
-- `lesson`: something learned that would change how the developer works next time, such as a surprise about a tool, a measurement, or a mistake worth not repeating. The detail that made one fix work is not a lesson: the fix already records it.
+- `lesson`: something learned that would change how the developer works next time: a tool's behaviour that broke something or cost real time to find, a measurement, or a mistake worth not repeating. A quirk that was fixed in one step is not a lesson, and neither is how a fix or a feature works: the code already records both.
 - `open_question`: a question the thread leaves unanswered and that still needs a decision. A question that a later event in the thread settles is not open.
 - `next_step`: work the events say is planned and not yet done. A limitation or a wish that nobody has committed to is not a next step.
 
