@@ -26,8 +26,8 @@ class InboxCollector:
     """One event per note in the inbox file: a bullet under a `## 2026-11-23` date heading.
 
     A note that starts with `[name]`, where `name` is one of `repos`, belongs to that repo.
-    A note has no time of day, so its event is placed at noon in the timezone of the range.
     A second word given in the brackets is the branch.
+    A note has no time of day, so its event is placed at noon in the timezone of the range.
     """
 
     def __init__(self, inbox: Path, repos: Collection[str]) -> None:
