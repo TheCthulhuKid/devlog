@@ -238,6 +238,19 @@ def test_draft_keeps_every_claim_when_selection_fails(journal):
     assert "claims not selected (the model refused)" in result.report.read_text()
 
 
+def test_a_rejected_pick_is_asked_again_on_the_next_draft(journal):
+    write_events([opened("shortener", PR)], journal / ".devlog" / WEEK / "events.jsonl")
+    picks = [Selection(keep=()), Selection(keep=(1,))]
+
+    def complete(system, prompt, output, tools=()):
+        return picks.pop(0) if output is Selection else MANY
+
+    assert draft_week(WEEK, journal, [], fake(complete), run_command).selection_failed
+    again = draft_week(WEEK, journal, [], fake(complete), run_command)
+
+    assert not again.selection_failed
+
+
 def test_draft_shows_a_digest_per_repo_and_keeps_every_thread_line_in_a_file(journal):
     events = [opened("shortener", PR), opened("shortener", PR.replace("15", "16"))]
     write_events(events, journal / ".devlog" / WEEK / "events.jsonl")

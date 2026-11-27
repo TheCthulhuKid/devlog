@@ -11,7 +11,7 @@ from devlog.digest import digest_threads
 from devlog.entry import assemble_entry, drop_unsupported, list_claims, thread_line
 from devlog.events import read_events
 from devlog.llm import LLMClient, LLMError, SavedAnswers, Usage
-from devlog.selection import select_claims
+from devlog.selection import RejectedPick, Selection, select_claims
 from devlog.summarise import Claim, ClaimKind, ThreadSummary, summarise_thread
 from devlog.templates import load
 from devlog.threads import Thread, group_events
@@ -78,18 +78,18 @@ def draft_week(
             f"{entry_file} was edited after it was drafted: pass `--overwrite` to replace it"
         )
 
-    llm = SavedAnswers(llm, folder / "summaries")
+    saved = SavedAnswers(llm, folder / "summaries")
 
-    summarised, failures = _summarise_all(threads, llm, repos, run, progress)
+    summarised, failures = _summarise_all(threads, saved, repos, run, progress)
     supported, dropped = drop_unsupported(summarised)
     not_selected = []
     try:
-        kept, left_out = select_claims(supported, llm)
+        kept, left_out = _select(supported, saved)
     except LLMError as error:
         kept, left_out = supported, []
         not_selected.append(f"- week: claims not selected ({error})")
 
-    work, undigested = digest_threads(supported, llm)
+    work, undigested = digest_threads(supported, saved)
 
     text = assemble_entry(week, kept, load("entry.md"), work)
     draft_file.write_text(text, encoding="utf-8")
@@ -119,7 +119,7 @@ def draft_week(
         dropped=len(dropped),
         failed=len(failures),
         undigested=len(undigested),
-        usage=llm.usage,
+        usage=saved.usage,
     )
 
 
@@ -188,10 +188,21 @@ def pick_week(
     saved = SavedAnswers(llm, folder / "summaries")
     summarised, failures = _summarise_all(threads, saved, repos, run, progress)
     supported, _ = drop_unsupported(summarised)
-    kept, left_out = select_claims(supported, llm if again else saved)
+    kept, left_out = select_claims(supported, llm) if again else _select(supported, saved)
 
     claims = [claim for _, summary in kept for claim in summary.claims]
     return "\n".join([list_claims(claims), *failures, _kept_counts(claims, left_out)])
+
+
+def _select(
+    summarised: Sequence[tuple[Thread, ThreadSummary]], saved: SavedAnswers
+) -> tuple[list[tuple[Thread, ThreadSummary]], list[Claim]]:
+    """Pick the week's claims through `saved`, which forgets a pick that is rejected."""
+    try:
+        return select_claims(summarised, saved)
+    except RejectedPick as error:
+        saved.forget(error.system, error.prompt, Selection)
+        raise
 
 
 def _holds(thread: Thread, text: str) -> bool:

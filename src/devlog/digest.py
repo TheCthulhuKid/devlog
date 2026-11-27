@@ -45,5 +45,4 @@ def _digested(repo: str | None, threads: list[str], llm: LLMClient) -> list[str]
     if len(threads) == 1:
         return threads
     digest = llm.complete(load("digest.prompt.md"), "\n".join(threads), RepoDigest)
-    # The line is one item of a list, which a line break would cut in two.
-    return [work_line(repo, " ".join(digest.text.split()))]
+    return [work_line(repo, digest.text)]

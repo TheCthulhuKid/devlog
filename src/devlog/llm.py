@@ -151,7 +151,7 @@ class SavedAnswers:
     """An `LLMClient` that keeps each answer of `llm` in `folder` and only asks for new ones.
 
     An answer is reused while the model, the system prompt, the prompt and the shape of the
-    answer are all unchanged. Nothing is ever deleted from `folder`.
+    answer are all unchanged. Only `forget` deletes one from `folder`.
     """
 
     def __init__(self, llm: LLMClient, folder: Path) -> None:
@@ -172,9 +172,7 @@ class SavedAnswers:
         self, system: str, prompt: str, output: type[T], tools: Sequence[Tool] = ()
     ) -> T:
         """Return the saved answer to `prompt`, or ask `llm` and save what it answers."""
-        schema = json.dumps(output.model_json_schema(), sort_keys=True)
-        key = hashlib.sha256("\0".join((self.model, system, prompt, schema)).encode())
-        file = self._folder / f"{key.hexdigest()[:32]}.json"
+        file = self._file(system, prompt, output)
         if file.exists():
             return output.model_validate_json(file.read_text(encoding="utf-8"))
         answer = self._llm.complete(system, prompt, output, tools)
@@ -184,6 +182,15 @@ class SavedAnswers:
         unfinished.write_text(answer.model_dump_json(), encoding="utf-8")
         unfinished.replace(file)
         return answer
+
+    def forget(self, system: str, prompt: str, output: type[BaseModel]) -> None:
+        """Delete the saved answer to `prompt`, so that it is asked again."""
+        self._file(system, prompt, output).unlink(missing_ok=True)
+
+    def _file(self, system: str, prompt: str, output: type[BaseModel]) -> Path:
+        schema = json.dumps(output.model_json_schema(), sort_keys=True)
+        key = hashlib.sha256("\0".join((self.model, system, prompt, schema)).encode())
+        return self._folder / f"{key.hexdigest()[:32]}.json"
 
 
 def connect_anthropic(model: str) -> AnthropicClient:

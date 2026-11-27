@@ -38,6 +38,14 @@ def test_each_claim_lands_in_its_section_with_its_links():
     assert lessons == "- Fixed windows leak. (`inbox.md#2026-11-17`)"
 
 
+def test_a_line_break_in_a_claim_stays_one_list_item():
+    broken = Claim(text="Chose a sliding\nwindow.", kind=ClaimKind.DECISION, evidence=(NOTE,))
+
+    entry = assemble_entry(WEEK, [summarised(broken)], "$decisions")
+
+    assert entry == "- Chose a sliding window. (`inbox.md#2026-11-17`)"
+
+
 def test_commit_without_a_web_link_is_shown_as_code():
     link = "devlog@0a1b2c3d4e5f60718293a4b5c6d7e8f901234567"
     local = Claim(text="Kept the cache local.", kind=ClaimKind.DECISION, evidence=(link,))
