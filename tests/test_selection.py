@@ -58,6 +58,13 @@ def test_a_pick_that_was_not_listed_fails():
         select_claims(week, fake(complete))
 
 
+def test_an_empty_pick_fails():
+    week = [summarised("shortener", TARGET + 1)]
+
+    with pytest.raises(LLMError, match="no claims"):
+        select_claims(week, fake(lambda *args: Selection(keep=())))
+
+
 def test_a_week_within_the_target_is_not_sent_to_the_llm():
     week = [summarised("shortener", TARGET)]
 
