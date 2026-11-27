@@ -145,6 +145,7 @@ devlog pick --week 2026-W47 --again  # ask the pick afresh, to see how much it v
 devlog stats                    # how much of each week's draft you kept
 devlog evaluate --week 2026-W45 # check a draft's commits and score it against your gold entry
 devlog note "chose FTS5 over embeddings"  # add a note to the inbox, from any folder
+devlog --version                # the installed version; CHANGELOG.md lists what each one changed
 ```
 
 ### collect

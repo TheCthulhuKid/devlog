@@ -5,6 +5,7 @@ import sys
 from collections import Counter
 from collections.abc import Callable, Sequence
 from datetime import date, datetime
+from importlib.metadata import version
 from pathlib import Path
 
 from devlog.collectors.base import Collector, run_command
@@ -37,6 +38,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_CONFIG_PATH,
         help="config file (default: %(default)s)",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {version('devlog')}")
     commands = parser.add_subparsers(dest="command", required=True)
     helps = {
         "collect": "gather a week's events",
