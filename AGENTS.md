@@ -82,6 +82,7 @@ Run the same checks as CI (see `.github/workflows/ci.yml`) before reporting work
 .venv/bin/python -m pytest
 .venv/bin/python -m ruff check .
 .venv/bin/python -m ruff format --check .
+.venv/bin/python -m mypy
 ```
 
 Report failures with their output. Never summarise failing checks as passing, and never weaken, skip or

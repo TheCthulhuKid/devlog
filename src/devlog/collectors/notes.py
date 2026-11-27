@@ -131,9 +131,11 @@ def _dated_notes(text: str) -> list[tuple[date, list[str]]]:
             in_note = False
             continue
         bullet = _BULLET.match(line)
-        if bullet and day is None:
-            raise InboxError(f"line {number}: this note has no date heading above it")
-        if bullet or (day and not in_note and line.strip()):
+        if day is None:
+            if bullet:
+                raise InboxError(f"line {number}: this note has no date heading above it")
+            continue
+        if bullet or (not in_note and line.strip()):
             notes.append((day, [line[bullet.end() :] if bullet else line.strip()]))
             in_note = True
         elif in_note and line.strip():

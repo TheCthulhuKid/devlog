@@ -97,7 +97,7 @@ class AnthropicClient:
         calls = itertools.count(1)
         failures: list[Exception] = []
 
-        def runnable(tool: Tool) -> BetaFunctionTool:
+        def runnable(tool: Tool) -> BetaFunctionTool[Callable[..., str]]:
             def call(**arguments: Any) -> str:
                 if next(calls) > _MAX_TOOL_CALLS:
                     return _NO_CALLS_LEFT
