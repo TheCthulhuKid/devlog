@@ -30,6 +30,7 @@ def select_claims(
 
     Claims are picked by number, so their text and evidence stay as they were. A week with no
     more than `TARGET` claims is returned whole, without asking the LLM.
+    Raises `LLMError` when the LLM picks nothing or a number that was not listed.
     """
     numbers = itertools.count(1)
     numbered = [
@@ -43,6 +44,8 @@ def select_claims(
     system = Template(load("selection.prompt.md")).substitute(target=TARGET)
     listing = "\n\n".join(_listed(*item) for item in numbered)
     keep = set(llm.complete(system, listing, Selection).keep)
+    if not keep:
+        raise LLMError("the model picked no claims")
     if unlisted := sorted(keep - set(range(1, total + 1))):
         raise LLMError(f"the model picked claims that were not listed: {unlisted}")
 
