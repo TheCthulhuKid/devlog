@@ -5,6 +5,7 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 from devlog.entry import sections
 
@@ -86,11 +87,11 @@ def journal_stats(journal: Path) -> list[WeekEdits]:
     return weeks
 
 
-def _row(week: WeekEdits) -> dict:
+def _row(week: WeekEdits) -> dict[str, Any]:
     numbers = _numbers(total(week.sections))
     del numbers["section"]
     return {"week": week.week, **numbers, "sections": [_numbers(s) for s in week.sections]}
 
 
-def _numbers(edits: SectionEdits) -> dict:
+def _numbers(edits: SectionEdits) -> dict[str, Any]:
     return {**asdict(edits), "removed": edits.removed, "edit_rate": edits.edit_rate}

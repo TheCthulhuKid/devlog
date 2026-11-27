@@ -113,11 +113,14 @@ class GitHubCollector:
 
     def _query(self, query: str, variables: dict[str, str]) -> dict[str, Any]:
         fields = {"login": self._user, **variables}
-        return self._graphql(query, [f"{name}={value}" for name, value in fields.items()])["user"]
+        arguments = [f"{name}={value}" for name, value in fields.items()]
+        user: dict[str, Any] = self._graphql(query, arguments)["user"]
+        return user
 
     def _graphql(self, query: str, fields: Sequence[str]) -> dict[str, Any]:
         arguments = [f"--raw-field={field}" for field in (f"query={query}", *fields)]
-        return json.loads(self._run(["gh", "api", "graphql", *arguments]))["data"]
+        data: dict[str, Any] = json.loads(self._run(["gh", "api", "graphql", *arguments]))["data"]
+        return data
 
 
 def _utc(moment: datetime) -> str:

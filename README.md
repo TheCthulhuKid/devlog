@@ -252,6 +252,7 @@ uv sync --locked --group dev
 .venv/bin/python -m pytest
 .venv/bin/python -m ruff check .
 .venv/bin/python -m ruff format --check .
+.venv/bin/python -m mypy
 ```
 
 To have git refuse a commit that fails the Ruff lint or format check, turn on the repo's hook once
