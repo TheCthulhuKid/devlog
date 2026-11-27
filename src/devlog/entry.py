@@ -121,7 +121,7 @@ def _label(link: str) -> str:
 
 def _claim_line(claim: Claim) -> str:
     links = ", ".join(_evidence(link) for link in claim.evidence)
-    return f"- {claim.text} ({links})"
+    return f"- {_one_line(claim.text)} ({links})"
 
 
 def thread_line(thread: Thread, summary: ThreadSummary) -> str:
@@ -131,7 +131,11 @@ def thread_line(thread: Thread, summary: ThreadSummary) -> str:
 
 def work_line(repo: str | None, text: str) -> str:
     """Return the entry's line saying `text` about work in `repo`."""
-    return f"- **{repo or 'notes'}:** {text}"
+    return f"- **{repo or 'notes'}:** {_one_line(text)}"
+
+
+def _one_line(text: str) -> str:
+    return " ".join(text.split())
 
 
 def _evidence(link: str) -> str:
