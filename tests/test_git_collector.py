@@ -68,6 +68,13 @@ def test_commit_touching_only_generated_files_is_skipped(repo):
     assert [event.title for event in collect_all(repo)] == ["feat: add app"]
 
 
+def test_a_commit_by_a_similar_email_is_left_out(repo):
+    commit(repo, "feat: add app", "src/app.py")
+    git(repo, "config", "user.email", "cat@example.com")
+
+    assert collect_all(repo) == []
+
+
 def test_commit_on_a_feature_branch_records_that_branch(repo):
     commit(repo, "feat: add app", "src/app.py")
     git(repo, "checkout", "--quiet", "-b", "retries")
