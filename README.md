@@ -120,7 +120,13 @@ after a bullet belong to it. A bullet with no date heading above it is an error,
 - Caching was a dead end
   Invalidation cost more than it saved.
 - Ask about rate limits
+- [devlog search] Chose FTS5 over embeddings
 ```
+
+A note that starts with the name of one of your `repos` in square brackets belongs to that repo, and a
+second word in the brackets is the branch it was written on: the note then joins that branch's commits
+in the draft. Any other bracket is part of the note. `devlog note` writes notes in this format, and
+you can always edit the file by hand.
 
 ## Usage
 
@@ -134,6 +140,7 @@ devlog pick --week 2026-W47     # try the selection prompt on that week's claims
 devlog pick --week 2026-W47 --again  # ask the pick afresh, to see how much it varies
 devlog stats                    # how much of each week's draft you kept
 devlog evaluate --week 2026-W45 # check a draft's commits and score it against your gold entry
+devlog note "chose FTS5 over embeddings"  # add a note to the inbox, from any folder
 ```
 
 ### collect
@@ -228,6 +235,16 @@ are missing or not pushed, and exits with status 1 if one is missing. It also wr
 commits, then the drafted decisions that cite none. Write `matched` or `missed` in the brackets of a
 gold decision, and `wrong` or `extra` for a drafted one, and run the command again to see the
 counts. The sheet is never replaced; delete it to start again.
+
+### note
+
+`note` adds a note to `inbox.md` under today's date heading, which it adds when the last heading is
+another day. It only appends, so nothing you typed is changed. The words after `note` are the note;
+with none, it is read from standard input, and every further line stays part of the same note.
+
+Run inside one of your `repos`, the note names that repo and the branch it is on (`[devlog search]`),
+so `collect` puts it with that branch's work. `--repo` names another of your repos and `--branch`
+another branch. Outside every repo the note has neither.
 
 ## Roadmap
 

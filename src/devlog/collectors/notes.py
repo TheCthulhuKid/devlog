@@ -1,8 +1,8 @@
 """Collects notes: the inbox the user writes by hand, and Markdown files such as plans."""
 
 import re
-from collections.abc import Iterator, Sequence
-from datetime import UTC, date, datetime, time
+from collections.abc import Collection, Iterator, Sequence
+from datetime import UTC, date, datetime, time, tzinfo
 from pathlib import Path
 
 from devlog.collectors.base import Runner
@@ -15,6 +15,7 @@ _BULLET = re.compile(r"[-*+]\s+")
 _NOTE_TIME = time(12)
 _MAX_BODY = 4000
 _TRUNCATED = "\n[truncated]"
+_REPO_PREFIX = re.compile(r"\[(?P<repo>[^]\s]+)(?:\s+(?P<branch>[^]\s]+))?]\s+")
 
 
 class InboxError(ValueError):
@@ -24,28 +25,42 @@ class InboxError(ValueError):
 class InboxCollector:
     """One event per note in the inbox file: a bullet under a `## 2026-11-23` date heading.
 
+    A note that starts with `[name]`, where `name` is one of `repos`, belongs to that repo.
     A note has no time of day, so its event is placed at noon in the timezone of the range.
+    A second word given in the brackets is the branch.
     """
 
-    def __init__(self, inbox: Path) -> None:
+    def __init__(self, inbox: Path, repos: Collection[str]) -> None:
         self._inbox = inbox
+        self._repos = repos
 
     def collect(self, start: datetime, end: datetime) -> list[Event]:
         """Return the notes dated in `start <= time < end`. A missing inbox has no notes."""
         if not self._inbox.exists():
             return []
         events = [
-            Event(
-                time=datetime.combine(day, _NOTE_TIME, start.tzinfo),
-                source="notes",
-                repo=None,
-                title=lines[0],
-                body="\n".join(lines[1:]),
-                link=f"{self._inbox.name}#{day}",
-            )
+            self._event(day, lines, start.tzinfo)
             for day, lines in _dated_notes(self._inbox.read_text(encoding="utf-8"))
         ]
         return [event for event in events if start <= event.time < end]
+
+    def _event(self, day: date, lines: list[str], zone: tzinfo | None) -> Event:
+        repo, branch, title = self._repo_branch_title(lines[0])
+        return Event(
+            time=datetime.combine(day, _NOTE_TIME, zone),
+            source="notes",
+            repo=repo,
+            title=title,
+            body="\n".join(lines[1:]),
+            link=f"{self._inbox.name}#{day}",
+            branch=branch,
+        )
+
+    def _repo_branch_title(self, line: str) -> tuple[str | None, str | None, str]:
+        prefix = _REPO_PREFIX.match(line)
+        if prefix and prefix["repo"] in self._repos:
+            return prefix["repo"], prefix["branch"], line[prefix.end() :]
+        return None, None, line
 
 
 class NoteFilesCollector:

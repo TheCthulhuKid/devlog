@@ -1,3 +1,4 @@
+import io
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
 
@@ -44,6 +45,39 @@ def run(config_file, complete, command: str, *options: str) -> int:
 
 def draft(config_file, complete, *options: str) -> int:
     return run(config_file, complete, "draft", *options)
+
+
+@pytest.fixture
+def inside_repo(repo, monkeypatch):
+    (repo / "src").mkdir()
+    monkeypatch.chdir(repo / "src")
+    path = repo / "config.toml"
+    path.write_text(f'github_user = "octocat"\njournal = "{repo}"\nrepos = ["{repo}"]\n')
+    return path
+
+
+def note(config, *arguments: str) -> str:
+    main(["--config", str(config), "note", *arguments], today=date(2026, 11, 27))
+    return (config.parent / "inbox.md").read_text()
+
+
+def test_note_written_inside_a_repo_names_that_repo(inside_repo):
+    name = inside_repo.parent.name
+
+    assert note(inside_repo, "chose", "FTS5") == f"## 2026-11-27\n- [{name} main] chose FTS5\n"
+
+
+def test_note_takes_the_branch_given(inside_repo):
+    name = inside_repo.parent.name
+
+    text = note(inside_repo, "--branch", "search", "chose FTS5")
+    assert text == f"## 2026-11-27\n- [{name} search] chose FTS5\n"
+
+
+def test_note_reads_standard_input_when_no_text_is_given(config_file, monkeypatch):
+    monkeypatch.setattr("sys.stdin", io.StringIO("chose FTS5\n"))
+
+    assert note(config_file) == "## 2026-11-27\n- chose FTS5\n"
 
 
 def test_collect_writes_all_sources_in_time_order(config_file, tmp_path, capsys):
