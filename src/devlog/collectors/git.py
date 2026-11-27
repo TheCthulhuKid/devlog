@@ -35,8 +35,9 @@ _MAX_OUTPUT = 20_000  # This is a guess for the moment. May need tweaking.
 class GitCollector:
     """One event per non-merge commit the repo's configured user authored, on any branch.
 
-    An event's branch is the one git reached the commit through. That is the branch it was made
-    on while that branch is unmerged, and a best guess afterwards.
+    An event's branch is the one its pull request was merged from, read from the merge commit.
+    A commit no such merge brought in gets the branch git reached it through: the branch it was
+    made on while that branch is unmerged, and a best guess afterwards.
 
     Files matching `ignored_files` (globs, at any depth) are left out, and so is a commit that
     touches nothing else.
@@ -177,8 +178,9 @@ def _merge_branches(run: Runner, repo: Path, start: datetime) -> dict[str, str]:
         "rev-list",
         "--branches",
         "--exclude=*/HEAD",
+        "--remotes",
         "--merges",
-        "--reverse",  # oldest first
+        "--reverse",
         f"--since={start.isoformat()}",
         "--no-commit-header",  # without it, rev-list prints a "commit <sha>" line before each
         "--format=%P %s",
