@@ -61,10 +61,11 @@ def note(config, *arguments: str) -> str:
     return (config.parent / "inbox.md").read_text()
 
 
-def test_note_written_inside_a_repo_names_that_repo(inside_repo):
+def test_note_written_inside_a_repo_names_that_repo(inside_repo, capsys):
     name = inside_repo.parent.name
 
     assert note(inside_repo, "chose", "FTS5") == f"## 2026-11-27\n- [{name} main] chose FTS5\n"
+    assert capsys.readouterr().out.endswith(f"(repo: {name}, branch: main)\n")
 
 
 def test_note_takes_the_branch_given(inside_repo):

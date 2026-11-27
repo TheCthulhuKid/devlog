@@ -23,7 +23,7 @@ def write_note(
 ) -> None:
     """Append `note` to the inbox under the heading of the `day`, adding the heading if needed.
 
-    Raises `ValueError` if a note is empty or a branch without a repo is given
+    Raises `ValueError` if a note is empty or a branch without a repo is given.
     """
     existing = inbox.read_text(encoding="utf-8") if inbox.exists() else ""
     addition = _addition(existing, _bullet(note, _prefix(repo, branch)), day)
@@ -44,7 +44,7 @@ def _last_heading(text: str) -> str | None:
 
 
 def _newlines(existing: str, wanted: int) -> str:
-    """Return the newlines still missing for a non-empty `existing` to end with `wanted`"""
+    """Return the newlines still missing for a non-empty `existing` to end with `wanted`."""
     if not existing:
         return ""
     present = len(existing) - len(existing.rstrip("\n"))

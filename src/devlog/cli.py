@@ -233,7 +233,7 @@ def _note(
         write_note(inbox, text, today, name, branch)
     except ValueError as error:
         parser.error(str(error))
-    print(f"note added to {inbox} (repo: {name or 'none'}, branch: {branch or 'none'}")
+    print(f"note added to {inbox} (repo: {name or 'none'}, branch: {branch or 'none'})")
     return 0
 
 
