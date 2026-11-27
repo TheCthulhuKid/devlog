@@ -46,6 +46,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: uv build
       - run: uv run --isolated --no-project --with dist/*.whl devlog --help
+      - run: uv run --isolated --no-project --with dist/*.whl python -m devlog --help
       # --help reads no template, so load each one from the installed wheel.
       - working-directory: src/devlog/templates
         run: >-

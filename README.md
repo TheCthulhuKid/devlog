@@ -255,6 +255,8 @@ uv sync --locked --group dev
 .venv/bin/python -m mypy
 ```
 
+In a clone, the tool itself runs the same way: `.venv/bin/python -m devlog collect`.
+
 To have git refuse a commit that fails the Ruff lint or format check, turn on the repo's hook once
 per clone:
 
