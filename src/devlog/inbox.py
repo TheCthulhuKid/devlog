@@ -1,21 +1,36 @@
 """Writes a note into the inbox file, in the format the user types by hand."""
 
 import re
+from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 
 _HEADING = re.compile(r"^#{1,6}\s+(.*?)\s*$", re.MULTILINE)
 
 
+def note_repo(repos: Sequence[Path], folder: Path, given: str | None = None) -> str | None:
+    """Return the name of the repo a note is about: `given`, or the repo that holds `folder`."""
+    if given is None:
+        return next((repo.name for repo in repos if folder.is_relative_to(repo)), None)
+    names = [repo.name for repo in repos]
+    if given not in names:
+        raise ValueError(f"{given} is not one of your repos: {', '.join(names)}")
+    return given
+
+
 def write_note(inbox: Path, note: str, day: date, repo: str | None = None) -> None:
-    """Append `note` to the inbox under the heading of the `day`, adding the heading if needed."""
+    """Append `note` to the inbox under the heading of the `day`, adding the heading if needed.
+
+    raises ValueError if a note is empty
+    """
     existing = inbox.read_text(encoding="utf-8") if inbox.exists() else ""
+    addition = _addition(existing, note, day, repo)
     with inbox.open("a", encoding="utf-8") as file:
-        file.write(_addition(existing, note, day, repo))
+        file.write(addition)
 
 
 def _addition(existing: str, note: str, day: date, repo: str | None) -> str:
-    bullet = f"- [{repo}] {note}\n" if repo else f"- {note}\n"
+    bullet = _bullet(note, repo)
     day_iso = day.isoformat()
     if _last_heading(existing) == day_iso:
         return _newlines(existing, 1) + bullet
@@ -33,3 +48,11 @@ def _newlines(existing: str, wanted: int) -> str:
         return ""
     present = len(existing) - len(existing.rstrip("\n"))
     return "\n" * max(wanted - present, 0)
+
+
+def _bullet(note: str, repo: str | None) -> str:
+    lines = [line.strip() for line in note.splitlines() if line.strip()]
+    if not lines:
+        raise ValueError("the note is empty")
+    prefix = f"[{repo}] " if repo else ""
+    return f"- {prefix}" + "\n  ".join(lines) + "\n"
