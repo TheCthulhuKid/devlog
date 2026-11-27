@@ -47,7 +47,7 @@ def test_a_note_of_several_lines_stays_one_note(tmp_path):
 def test_a_note_belongs_to_the_repo_of_the_folder_it_is_written_in(tmp_path):
     repos = [tmp_path / "devlog", tmp_path / "bake-off"]
 
-    assert note_repo(repos, tmp_path / "bake-off" / "src") == "bake-off"
+    assert note_repo(repos, tmp_path / "bake-off" / "src") == tmp_path / "bake-off"
     assert note_repo(repos, tmp_path) is None
 
 

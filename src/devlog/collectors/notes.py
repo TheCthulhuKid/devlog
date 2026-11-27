@@ -15,7 +15,7 @@ _BULLET = re.compile(r"[-*+]\s+")
 _NOTE_TIME = time(12)
 _MAX_BODY = 4000
 _TRUNCATED = "\n[truncated]"
-_REPO_PREFIX = re.compile(r"\[(?P<repo>[^]]+)]\s+")
+_REPO_PREFIX = re.compile(r"\[(?P<repo>[^]\s]+)(?:\s+(?P<branch>[^]\s]+))?]\s+")
 
 
 class InboxError(ValueError):
@@ -27,6 +27,7 @@ class InboxCollector:
 
     A note that starts with `[name]`, where `name` is one of `repos`, belongs to that repo.
     A note has no time of day, so its event is placed at noon in the timezone of the range.
+    A second word given in the brackets is the branch.
     """
 
     def __init__(self, inbox: Path, repos: Collection[str]) -> None:
@@ -44,7 +45,7 @@ class InboxCollector:
         return [event for event in events if start <= event.time < end]
 
     def _event(self, day: date, lines: list[str], zone: tzinfo | None) -> Event:
-        repo, title = self._repo_and_title(lines[0])
+        repo, branch, title = self._repo_branch_title(lines[0])
         return Event(
             time=datetime.combine(day, _NOTE_TIME, zone),
             source="notes",
@@ -52,13 +53,14 @@ class InboxCollector:
             title=title,
             body="\n".join(lines[1:]),
             link=f"{self._inbox.name}#{day}",
+            branch=branch,
         )
 
-    def _repo_and_title(self, line: str) -> tuple[str | None, str]:
+    def _repo_branch_title(self, line: str) -> tuple[str | None, str | None, str]:
         prefix = _REPO_PREFIX.match(line)
         if prefix and prefix["repo"] in self._repos:
-            return prefix["repo"], line[prefix.end() :]
-        return None, line
+            return prefix["repo"], prefix["branch"], line[prefix.end() :]
+        return None, None, line
 
 
 class NoteFilesCollector:

@@ -18,19 +18,20 @@ def note_repo(repos: Sequence[Path], folder: Path, given: str | None = None) -> 
     return given
 
 
-def write_note(inbox: Path, note: str, day: date, repo: str | None = None) -> None:
+def write_note(
+    inbox: Path, note: str, day: date, repo: str | None = None, branch: str | None = None
+) -> None:
     """Append `note` to the inbox under the heading of the `day`, adding the heading if needed.
 
-    raises ValueError if a note is empty
+    Raises `ValueError` if a note is empty or a branch without a repo is given
     """
     existing = inbox.read_text(encoding="utf-8") if inbox.exists() else ""
-    addition = _addition(existing, note, day, repo)
+    addition = _addition(existing, _bullet(note, _prefix(repo, branch)), day)
     with inbox.open("a", encoding="utf-8") as file:
         file.write(addition)
 
 
-def _addition(existing: str, note: str, day: date, repo: str | None) -> str:
-    bullet = _bullet(note, repo)
+def _addition(existing: str, bullet: str, day: date) -> str:
     day_iso = day.isoformat()
     if _last_heading(existing) == day_iso:
         return _newlines(existing, 1) + bullet
@@ -50,9 +51,16 @@ def _newlines(existing: str, wanted: int) -> str:
     return "\n" * max(wanted - present, 0)
 
 
-def _bullet(note: str, repo: str | None) -> str:
+def _prefix(repo: str | None, branch: str | None) -> str:
+    if branch and not repo:
+        raise ValueError(f"the branch {branch} needs a repo")
+    if not repo:
+        return ""
+    return f"[{repo} {branch}] " if branch else f"[{repo}] "
+
+
+def _bullet(note: str, prefix: str) -> str:
     lines = [line.strip() for line in note.splitlines() if line.strip()]
     if not lines:
         raise ValueError("the note is empty")
-    prefix = f"[{repo}] " if repo else ""
     return f"- {prefix}" + "\n  ".join(lines) + "\n"
