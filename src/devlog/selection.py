@@ -23,6 +23,15 @@ class Selection(BaseModel):
     keep: tuple[int, ...]
 
 
+class RejectedPick(LLMError):
+    """The model's pick cannot be used. `system` and `prompt` are the request it answered."""
+
+    def __init__(self, message: str, system: str, prompt: str) -> None:
+        super().__init__(message)
+        self.system = system
+        self.prompt = prompt
+
+
 def select_claims(
     summarised: Sequence[tuple[Thread, ThreadSummary]], llm: LLMClient
 ) -> tuple[list[tuple[Thread, ThreadSummary]], list[Claim]]:
@@ -30,7 +39,7 @@ def select_claims(
 
     Claims are picked by number, so their text and evidence stay as they were. A week with no
     more than `TARGET` claims is returned whole, without asking the LLM.
-    Raises `LLMError` when the LLM picks nothing or a number that was not listed.
+    Raises `RejectedPick` when the LLM picks nothing or a number that was not listed.
     """
     numbers = itertools.count(1)
     numbered = [
@@ -45,9 +54,10 @@ def select_claims(
     listing = "\n\n".join(_listed(*item) for item in numbered)
     keep = set(llm.complete(system, listing, Selection).keep)
     if not keep:
-        raise LLMError("the model picked no claims")
+        raise RejectedPick("the model picked no claims", system, listing)
     if unlisted := sorted(keep - set(range(1, total + 1))):
-        raise LLMError(f"the model picked claims that were not listed: {unlisted}")
+        message = f"the model picked claims that were not listed: {unlisted}"
+        raise RejectedPick(message, system, listing)
 
     kept = [
         (

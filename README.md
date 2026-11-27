@@ -175,7 +175,8 @@ A week's threads claim more than anyone rereads, so when they make more than 20 
 request asks Claude to pick at most 20 for the entry. It picks by number: the claims are printed as the
 thread summaries wrote them. `draft` prints how many were kept, and the rest are in
 `.devlog/<week>/unselected.md`, written as entry lines under their kind so one can be pasted back. If
-the pick fails, the draft holds every claim and the command exits with status 1.
+the pick fails, the draft holds every claim and the command exits with status 1. A pick that
+keeps nothing, or a number that was not listed, is not saved, so the next run asks again.
 
 Every statement in the draft names the commit, pull request or note behind it. Evidence on GitHub is
 a link; evidence with no web page (a note, or a commit from a repo with no GitHub remote) is named in
