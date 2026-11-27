@@ -19,7 +19,7 @@ def build_collectors(config: Config, run: Runner = run_command) -> list[Collecto
         GitCollector(config.repos, run, (*DEFAULT_IGNORED_FILES, *config.ignored_files)),
         AgentsFileCollector(config.repos, run),
         GitHubCollector(config.github_user, run),
-        InboxCollector(config.journal / INBOX_NAME),
+        InboxCollector(config.journal / INBOX_NAME, [repo.name for repo in config.repos]),
         NoteFilesCollector(config.notes_paths, config.repos, run),
     ]
 

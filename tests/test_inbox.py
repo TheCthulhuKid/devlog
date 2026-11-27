@@ -1,6 +1,8 @@
 from datetime import date
 
-from devlog.inbox import write_note
+import pytest
+
+from devlog.inbox import note_repo, write_note
 
 TODAY = date(2026, 11, 27)
 
@@ -32,3 +34,23 @@ def test_a_note_names_its_repo(tmp_path):
     write_note(inbox, "chose FTS5 over embeddings", TODAY, repo="devlog")
 
     assert inbox.read_text() == "## 2026-11-27\n- [devlog] chose FTS5 over embeddings\n"
+
+
+def test_a_note_of_several_lines_stays_one_note(tmp_path):
+    inbox = tmp_path / "inbox.md"
+
+    write_note(inbox, "chose FTS5\n\nkeyword search is enough\n", TODAY)
+
+    assert inbox.read_text() == "## 2026-11-27\n- chose FTS5\n  keyword search is enough\n"
+
+
+def test_a_note_belongs_to_the_repo_of_the_folder_it_is_written_in(tmp_path):
+    repos = [tmp_path / "devlog", tmp_path / "bake-off"]
+
+    assert note_repo(repos, tmp_path / "bake-off" / "src") == "bake-off"
+    assert note_repo(repos, tmp_path) is None
+
+
+def test_a_repo_that_is_not_configured_is_refused(tmp_path):
+    with pytest.raises(ValueError, match="devlgo is not one of your repos"):
+        note_repo([tmp_path / "devlog"], tmp_path, given="devlgo")
