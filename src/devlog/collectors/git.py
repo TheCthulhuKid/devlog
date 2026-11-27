@@ -28,6 +28,7 @@ DEFAULT_IGNORED_FILES = (
 _GITHUB_REMOTE = re.compile(
     r"(?:https://github\.com/|(?:ssh://)?git@github\.com[:/])(?P<slug>[^/]+/[^/]+?)(?:\.git)?/?"
 )
+_PR_MERGE = re.compile(r"Merge pull request #\d+ from [^/]+/(?P<branch>\S+)")
 _MAX_OUTPUT = 20_000  # This is a guess for the moment. May need tweaking.
 
 
@@ -150,6 +151,7 @@ def commits(
     author = _git(run, repo, "config", "user.email").strip()
     link_prefix = _link_prefix(repo.name, _git(run, repo, "ls-remote", "--get-url", "origin"))
     remotes = _git(run, repo, "remote").split()
+    merged = _merge_branches(run, repo, start)
     log = _git(
         run,
         repo,
@@ -164,16 +166,42 @@ def commits(
         _LOG_FORMAT,
         *log_args,
     )
-    commits = [_commit(record, link_prefix, remotes) for record in log.split(_RECORD)[1:]]
+    commits = [_commit(record, link_prefix, remotes, merged) for record in log.split(_RECORD)[1:]]
     return [commit for commit in commits if start <= commit.time < end]
 
 
-def _commit(record: str, link_prefix: str, remotes: Sequence[str]) -> Commit:
+def _merge_branches(run: Runner, repo: Path, start: datetime) -> dict[str, str]:
+    merges = _git(
+        run,
+        repo,
+        "rev-list",
+        "--branches",
+        "--exclude=*/HEAD",
+        "--merges",
+        "--reverse",  # oldest first
+        f"--since={start.isoformat()}",
+        "--no-commit-header",  # without it, rev-list prints a "commit <sha>" line before each
+        "--format=%P %s",
+    )
+    branches: dict[str, str] = {}
+    for line in merges.splitlines():
+        first, second, subject = line.split(" ", maxsplit=2)
+        merge = _PR_MERGE.fullmatch(subject)
+        if merge is None:
+            continue
+        for sha in _git(run, repo, "rev-list", f"{first}..{second}").split():
+            branches.setdefault(sha, merge["branch"])
+    return branches
+
+
+def _commit(
+    record: str, link_prefix: str, remotes: Sequence[str], merged: dict[str, str]
+) -> Commit:
     sha, authored, ref, subject, message, output = record.split(_FIELD)
     return Commit(
         time=datetime.fromisoformat(authored),
         link=f"{link_prefix}{sha}",
-        branch=_branch(ref, remotes),
+        branch=merged.get(sha) or _branch(ref, remotes),
         subject=subject or "(no commit message)",
         message=message.strip(),
         output=output,
