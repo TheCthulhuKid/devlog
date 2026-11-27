@@ -1,5 +1,7 @@
 import io
+import tomllib
 from datetime import UTC, date, datetime
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -79,6 +81,15 @@ def test_note_reads_standard_input_when_no_text_is_given(config_file, monkeypatc
     monkeypatch.setattr("sys.stdin", io.StringIO("chose FTS5\n"))
 
     assert note(config_file) == "## 2026-11-27\n- chose FTS5\n"
+
+
+def test_version_prints_the_version_in_pyproject(capsys):
+    pyproject = Path(__file__).parents[1] / "pyproject.toml"
+    version = tomllib.loads(pyproject.read_text())["project"]["version"]
+
+    with pytest.raises(SystemExit):
+        main(["--version"])
+    assert capsys.readouterr().out == f"devlog {version}\n"
 
 
 def test_collect_writes_all_sources_in_time_order(config_file, tmp_path, capsys):

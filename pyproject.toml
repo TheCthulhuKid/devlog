@@ -1,6 +1,6 @@
 [project]
 name = "devlog"
-version = "0.1.0"
+version = "0.2.0"
 description = "Turns a week of git history, GitHub activity and notes into an engineering journal entry, each claim linked to its evidence."
 readme = "README.md"
 license = "MIT"
