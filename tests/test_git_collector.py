@@ -16,6 +16,7 @@ def collect(log: str) -> list[Event]:
         "ls-remote": "git@github.com:octocat/devlog.git\n",
         "remote": "origin\n",
         "log": log,
+        "rev-list": "",
     }
     collector = GitCollector([Path("/work/devlog")], lambda args: outputs[args[5]])
     return collector.collect(*WEEK)
@@ -79,6 +80,19 @@ def test_commit_on_a_feature_branch_records_that_branch(repo):
     commit(repo, "feat: add app", "src/app.py")
     git(repo, "checkout", "--quiet", "-b", "retries")
     commit(repo, "fix: retry on timeout", "src/client.py")
+
+    branches = {event.title: event.branch for event in collect_all(repo)}
+    assert branches == {"feat: add app": "main", "fix: retry on timeout": "retries"}
+
+
+def test_a_commit_keeps_its_branch_after_the_branch_is_merged_and_deleted(repo):
+    commit(repo, "feat: add app", "src/app.py")
+    git(repo, "checkout", "--quiet", "-b", "retries")
+    commit(repo, "fix: retry on timeout", "src/client.py")
+    git(repo, "checkout", "--quiet", "main")
+    merge = "Merge pull request #7 from octocat/retries"
+    git(repo, "merge", "--quiet", "--no-ff", "--message", merge, "retries")
+    git(repo, "branch", "--quiet", "--delete", "retries")
 
     branches = {event.title: event.branch for event in collect_all(repo)}
     assert branches == {"feat: add app": "main", "fix: retry on timeout": "retries"}

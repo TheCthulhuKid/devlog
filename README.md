@@ -128,6 +128,10 @@ second word in the brackets is the branch it was written on: the note then joins
 in the draft. Any other bracket is part of the note. `devlog note` writes notes in this format, and
 you can always edit the file by hand.
 
+A commit keeps its branch after the branch is merged through a GitHub pull request and deleted, so
+the note still joins it. A squash or rebase merge leaves no record of the branch; the note is then
+listed as work of its own.
+
 ## Usage
 
 ```sh
