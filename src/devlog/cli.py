@@ -8,7 +8,8 @@ from datetime import date, datetime
 from pathlib import Path
 
 from devlog.collectors.base import Collector, run_command
-from devlog.collectors.registry import build_collectors, collect_events
+from devlog.collectors.git import current_branch
+from devlog.collectors.registry import INBOX_NAME, build_collectors, collect_events
 from devlog.config import DEFAULT_CONFIG_PATH, Config, load_config
 from devlog.drafts import (
     DraftResult,
@@ -20,6 +21,7 @@ from devlog.drafts import (
 )
 from devlog.evaluate import MARKS, UNMARKED, Evaluation, LinkStatus, evaluate_week
 from devlog.events import write_events
+from devlog.inbox import note_repo, write_note
 from devlog.llm import LLMClient, LLMError, Usage, connect_anthropic
 from devlog.stats import journal_stats, total
 from devlog.week import last_complete_week, week_bounds
@@ -40,6 +42,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "collect": "gather a week's events",
         "draft": "write the week's draft entry",
         "evaluate": "check a draft's commits and score it against the gold entry",
+        "note": "add a note to the inbox",
         "pick": "try the selection prompt on the week's claims",
         "sample": "try the summary prompt on a few of the week's threads",
         "stats": "show how much of each draft you kept",
@@ -51,6 +54,15 @@ def _build_parser() -> argparse.ArgumentParser:
         )
     parsers["draft"].add_argument(
         "--overwrite", action="store_true", help="replace an entry you have edited"
+    )
+    parsers["note"].add_argument(
+        "text", nargs="*", help="the note (default: read from standard input)"
+    )
+    parsers["note"].add_argument(
+        "--repo", help="the repo the note is about (default: the repo of the current folder)"
+    )
+    parsers["note"].add_argument(
+        "--branch", help="the branch the note is about (default: the branch that repo is on)"
     )
     parsers["pick"].add_argument(
         "--again",
@@ -204,6 +216,27 @@ def _report_evaluation(week: str, result: Evaluation) -> int:
     return 1 if statuses[LinkStatus.BROKEN] else 0
 
 
+def _note(
+    parser: argparse.ArgumentParser,
+    config: Config,
+    words: Sequence[str],
+    given_repo: str | None,
+    given_branch: str | None,
+    today: date,
+) -> int:
+    text = " ".join(words) or sys.stdin.read()
+    inbox = config.journal / INBOX_NAME
+    try:
+        repo = note_repo(config.repos, Path.cwd(), given_repo)
+        branch = given_branch or (current_branch(run_command, repo) if repo else None)
+        name = repo.name if repo else None
+        write_note(inbox, text, today, name, branch)
+    except ValueError as error:
+        parser.error(str(error))
+    print(f"note added to {inbox} (repo: {name or 'none'}, branch: {branch or 'none'}")
+    return 0
+
+
 def _tokens(usage: Usage) -> str:
     return f"tokens: {usage.input:,} in ({usage.cached:,} from cache), {usage.output:,} out"
 
@@ -219,9 +252,12 @@ def main(
     parser = _build_parser()
     args = parser.parse_args(argv)
     config = _load(parser, args.config)
+    today = today or date.today()
     if args.command == "stats":
         return _stats(config.journal)
-    week, start, end = _week(parser, args.week, today or date.today())
+    if args.command == "note":
+        return _note(parser, config, args.text, args.repo, args.branch, today)
+    week, start, end = _week(parser, args.week, today)
     if args.command == "collect":
         return _collect(week, config, build(config), start, end)
     if args.command == "evaluate":

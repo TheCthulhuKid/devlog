@@ -8,14 +8,14 @@ from pathlib import Path
 _HEADING = re.compile(r"^#{1,6}\s+(.*?)\s*$", re.MULTILINE)
 
 
-def note_repo(repos: Sequence[Path], folder: Path, given: str | None = None) -> str | None:
-    """Return the name of the repo a note is about: `given`, or the repo that holds `folder`."""
+def note_repo(repos: Sequence[Path], folder: Path, given: str | None = None) -> Path | None:
+    """Return the repo a note is about: the one named `given`, or the one that holds `folder`."""
     if given is None:
-        return next((repo.name for repo in repos if folder.is_relative_to(repo)), None)
-    names = [repo.name for repo in repos]
-    if given not in names:
-        raise ValueError(f"{given} is not one of your repos: {', '.join(names)}")
-    return given
+        return next((repo for repo in repos if folder.is_relative_to(repo)), None)
+    named = {repo.name: repo for repo in repos}
+    if given not in named:
+        raise ValueError(f"{given} is not one of your repos: {', '.join(named)}")
+    return named[given]
 
 
 def write_note(

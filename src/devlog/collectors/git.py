@@ -109,6 +109,11 @@ def tracked_files(run: Runner, repo: Path) -> set[Path]:
     return {repo / name for name in listing.split("\0") if name}
 
 
+def current_branch(run: Runner, repo: Path) -> str | None:
+    """Return the branch checked out in `repo`, or `None`, when no branch is."""
+    return _git(run, repo, "branch", "--show-current").strip() or None
+
+
 def commit_sha(link: str) -> str:
     """Return the commit hash a git event's link end with."""
     return re.split(r"[/@]", link)[-1]
